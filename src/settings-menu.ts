@@ -164,6 +164,15 @@ export async function showSettingsMenu(
       "Microphone",
       microphoneSummary(configured.microphone),
     );
+    // Local addition (autoSubmit feature): this file is the user-facing UI.
+    // It renders the On/Off row below, handles the toggle, and forwards the
+    // flag when a model change rebuilds the settings object. Object.assign()
+    // keeps the in-memory object in sync, so no Pi reload is needed.
+    const autoSubmitChoice = settingChoice(
+      theme,
+      "Auto-submit",
+      configured.autoSubmit ? "On" : "Off",
+    );
     const shortcutChoice = settingChoice(
       theme,
       "Shortcut",
@@ -180,6 +189,7 @@ export async function showSettingsMenu(
       languageChoice,
       ...(showChineseOutput ? [chineseOutputChoice] : []),
       microphoneChoice,
+      autoSubmitChoice,
       shortcutChoice,
       "Done",
     ];
@@ -198,6 +208,9 @@ export async function showSettingsMenu(
         preferredLanguages: configured.preferredLanguages,
         transcriptionLanguage: configured.transcriptionLanguage,
         chineseOutput: configured.chineseOutput,
+        // Preserve the flag when the user changes the model from this menu:
+        // runModelSelection() rebuilds the settings object, see settings.ts.
+        autoSubmit: configured.autoSubmit,
         currentModelId: configured.model.id,
         microphone: configured.microphone,
         onPreferredLanguagesChange: async (preferredLanguages) => {
@@ -247,6 +260,26 @@ export async function showSettingsMenu(
       await writeSettings(updated);
       Object.assign(configured, updated);
       ctx.ui.notify(`Microphone saved as ${microphoneSummary(microphone)}`, "info");
+      continue;
+    }
+    if (choice === autoSubmitChoice) {
+      const selected = await ctx.ui.select(
+        `Auto-submit transcriptions · ${configured.autoSubmit ? "On" : "Off"}`,
+        ["On", "Off"],
+      );
+      if (!selected) continue;
+      const autoSubmit = selected === "On";
+      if (autoSubmit === configured.autoSubmit) continue;
+
+      const updated: TranscribeSettings = { ...configured, autoSubmit };
+      await writeSettings(updated);
+      Object.assign(configured, updated);
+      ctx.ui.notify(
+        autoSubmit
+          ? "Auto-submit enabled: transcriptions are sent immediately"
+          : "Auto-submit disabled: transcriptions are pasted into the editor",
+        "info",
+      );
       continue;
     }
     if (choice === shortcutChoice) {

@@ -39,6 +39,10 @@ export type TranscribeSettings = {
   preferredLanguages: string[];
   transcriptionLanguage: TranscriptionLanguage;
   chineseOutput: ChineseOutput;
+  // Local addition (autoSubmit feature): this type is the single source of
+  // truth for the On/Off state, persisted in pi-transcribe.json. Every other
+  // file only reads or forwards this field.
+  autoSubmit: boolean;
   microphone: MicrophoneSetting;
   model: {
     source: "catalog";
@@ -146,6 +150,10 @@ function validateSettings(value: unknown): TranscribeSettings | undefined {
       preferredLanguages,
     ),
     chineseOutput: validateChineseOutput(value.chineseOutput),
+    // Backward compatibility: config files written before this feature exists
+    // have no autoSubmit key, so a missing/invalid value reads as false
+    // instead of failing validation (which would demand re-configuration).
+    autoSubmit: typeof value.autoSubmit === "boolean" ? value.autoSubmit : false,
     microphone,
     model: {
       source: "catalog",
@@ -198,6 +206,7 @@ type ModelSettingsOptions = {
   preferredLanguages?: readonly string[];
   transcriptionLanguage?: TranscriptionLanguage;
   chineseOutput?: ChineseOutput;
+  autoSubmit?: boolean;
   microphone?: MicrophoneSetting;
 };
 
@@ -222,6 +231,10 @@ export function settingsForModel(
       preferredLanguages,
     ),
     chineseOutput: options.chineseOutput ?? defaultChineseOutput(),
+    // settingsForModel() rebuilds the entire settings object from scratch on
+    // every model selection; without this line the flag would silently reset
+    // to false whenever the user picks a different model.
+    autoSubmit: options.autoSubmit ?? false,
     microphone: { ...(options.microphone ?? DEFAULT_MICROPHONE) },
     model: { source: "catalog", id: modelId, path: modelPath },
   };
