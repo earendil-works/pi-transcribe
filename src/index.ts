@@ -79,6 +79,9 @@ export default function piTranscribe(pi: ExtensionAPI): void {
       preferredLanguages: previous.preferredLanguages,
       transcriptionLanguage: previous.transcriptionLanguage,
       chineseOutput: previous.chineseOutput,
+      // Carry the flag through this re-configuration path: it runs when the
+      // configured model file went missing and the user picks a new model.
+      autoSubmit: previous.autoSubmit,
       currentModelId: previous.model.id,
       microphone: previous.microphone,
     });
@@ -191,8 +194,24 @@ export default function piTranscribe(pi: ExtensionAPI): void {
         const seconds = pcm.length / CAPTURE_SAMPLE_RATE;
 
         if (text) {
-          ctx.ui.pasteToEditor(text);
-          ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
+          // Local addition (autoSubmit feature): this is the behavior switch,
+          // the only place the setting changes what happens. True = send the
+          // transcription as a user message immediately (the same code path
+          // as pressing Enter, queued as steer while Pi is busy). False = the
+          // original behavior: paste into the editor and wait for Enter.
+          if (settings?.autoSubmit) {
+            const existing = ctx.ui.getEditorText().replace(/\s+$/, "");
+            const combined = existing ? `${existing} ${text}` : text;
+            await pi.sendUserMessage(combined, { deliverAs: "steer" });
+            ctx.ui.setEditorText("");
+            ctx.ui.notify(
+              `Transcribed ${seconds.toFixed(1)}s of audio — submitted`,
+              "info",
+            );
+          } else {
+            ctx.ui.pasteToEditor(text);
+            ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
+          }
         } else {
           ctx.ui.notify(`No speech detected in ${seconds.toFixed(1)}s of audio`, "warning");
         }

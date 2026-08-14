@@ -87,6 +87,11 @@ type ModelSelectionOptions = {
   preferredLanguages?: readonly string[];
   transcriptionLanguage?: TranscriptionLanguage;
   chineseOutput?: ChineseOutput;
+  // Local addition (autoSubmit feature): this file is pure plumbing. It is the
+  // model-picker flow (first run AND model changes), and it rebuilds settings
+  // via settingsForModel(). The flag must be accepted here and forwarded below,
+  // otherwise choosing a different model would reset it to false.
+  autoSubmit?: boolean;
   currentModelId?: string;
   microphone?: MicrophoneSetting;
   onPreferredLanguagesChange?: (languages: string[]) => Promise<void>;
@@ -199,6 +204,8 @@ export async function runModelSelection(
         preferredLanguages,
         transcriptionLanguage: options.transcriptionLanguage,
         chineseOutput: options.chineseOutput,
+        // The actual forwarding into the freshly built settings object.
+        autoSubmit: options.autoSubmit,
         microphone: options.microphone ?? DEFAULT_MICROPHONE,
       });
       await writeSettings(settings);
