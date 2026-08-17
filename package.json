@@ -1,6 +1,6 @@
 {
   "name": "@earendil-works/pi-transcribe",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Local speech-to-text dictation for Pi",
   "type": "module",
   "license": "MIT",
@@ -47,8 +47,8 @@
     "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.83.0",
-    "@earendil-works/pi-tui": "^0.83.0",
+    "@earendil-works/pi-coding-agent": "^0.84.2",
+    "@earendil-works/pi-tui": "^0.84.2",
     "@huggingface/gguf": "^0.4.6",
     "@types/node": "22.20.1",
     "typescript": "5.9.3"
