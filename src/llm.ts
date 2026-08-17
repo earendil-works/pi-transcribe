@@ -32,9 +32,6 @@ export async function completeText(
 ): Promise<string | undefined> {
   if (typeof ctx.modelRegistry?.complete !== "function") return undefined;
   if (options?.signal?.aborted) return undefined;
-  // One deadline for the whole operation (all tool rounds), not per call.
-  const deadline = AbortSignal.timeout(options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const signal = options?.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
   const tools = options?.tools?.map((tool) => ({
     name: tool.name,
     description: tool.description,
@@ -49,7 +46,10 @@ export async function completeText(
   ];
 
   try {
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+    // One deadline for the whole operation (all tool rounds), not per call.
+    const deadline = AbortSignal.timeout(options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    const signal = options?.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+    for (let rounds = 0; ; ) {
       const response = await ctx.modelRegistry.complete(model, { systemPrompt, messages, tools }, { signal });
       const text = response.content
         .filter((block): block is { type: "text"; text: string } => block.type === "text")
@@ -61,9 +61,10 @@ export async function completeText(
       if (toolCalls.length === 0 || !options?.tools) {
         return text.length > 0 ? text : undefined;
       }
-      // Last round: keep any answer the model produced alongside its tool
-      // calls instead of discarding it and looping into undefined.
-      if (round >= MAX_TOOL_ROUNDS) return text.length > 0 ? text : undefined;
+      // Tool-execution budget spent: keep any answer the model produced
+      // alongside its tool calls instead of discarding it into undefined.
+      if (rounds >= MAX_TOOL_ROUNDS) return text.length > 0 ? text : undefined;
+      rounds += 1;
 
       messages.push(response); // assistant reply containing the tool calls
       for (const call of toolCalls) {

@@ -63,6 +63,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
   let glossaryAbort: AbortController | undefined;
   let shuttingDown = false;
   let stopListening: (() => void) | undefined;
+  let cleaningUp = false;
   let cleanupUnavailableNotified = false;
   let cleanupFailedNotified = false;
   let settings: TranscribeSettings | undefined;
@@ -147,7 +148,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
       if (transcriptionAbort) {
         if (transcriptionAbort.signal.aborted) return;
         transcriptionAbort.abort();
-        ctx.ui.notify("Transcription cancelled", "info");
+        if (!cleaningUp) ctx.ui.notify("Transcription cancelled", "info");
         return { consume: true };
       }
     });
@@ -206,6 +207,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
 
         if (text && active.cleanupModel.type !== "none") {
           let cleanupAttempted = false;
+          let cleanupFinished = false;
           if (typeof ctx.modelRegistry?.complete !== "function") {
             if (!cleanupUnavailableNotified) {
               cleanupUnavailableNotified = true;
@@ -221,8 +223,9 @@ export default function piTranscribe(pi: ExtensionAPI): void {
               `Cleaning up transcript`,
               { cancelable: true },
             );
+            cleaningUp = true;
             try {
-              const cleaned = await cleanupWithLlm(
+              const result = await cleanupWithLlm(
                 ctx,
                 text,
                 active.editorTextAtStart,
@@ -230,13 +233,24 @@ export default function piTranscribe(pi: ExtensionAPI): void {
                 active.cleanupModel,
                 controller.signal,
               );
-              if (cleaned) {
-                text = cleaned;
-              } else if (!controller.signal.aborted && !cleanupFailedNotified) {
-                cleanupFailedNotified = true;
-                ctx.ui.notify("LLM cleanup failed; inserting the raw transcript", "warning");
+              if (result.ok) {
+                text = result.text;
+                cleanupFinished = true;
+              } else if (!controller.signal.aborted) {
+                if (result.reason === "unavailable") {
+                  if (!cleanupUnavailableNotified) {
+                    cleanupUnavailableNotified = true;
+                    ctx.ui.notify("Cleanup model unavailable; inserting the raw transcript", "warning");
+                  }
+                } else if (!cleanupFailedNotified) {
+                  cleanupFailedNotified = true;
+                  ctx.ui.notify("LLM cleanup failed; inserting the raw transcript", "warning");
+                }
               }
+            } catch {
+              // Any unexpected throw still pastes the raw transcript below.
             } finally {
+              cleaningUp = false;
               stopProgress();
             }
           }
@@ -247,7 +261,10 @@ export default function piTranscribe(pi: ExtensionAPI): void {
             // If cleanup actually finished before the abort landed, keep its
             // output. (Shutdown aborts the same signal but must not paste.)
             ctx.ui.pasteToEditor(text);
-            ctx.ui.notify("Cleanup cancelled; raw transcript inserted", "info");
+            ctx.ui.notify(
+              cleanupFinished ? "Cleanup finished; inserting the cleaned transcript" : "Cleanup cancelled; raw transcript inserted",
+              "info",
+            );
           } else if (text && !controller.signal.aborted) {
             ctx.ui.pasteToEditor(text);
             ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
