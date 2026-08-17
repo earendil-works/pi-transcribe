@@ -11,9 +11,11 @@ import { runModelSelection, runOnboarding } from "./onboarding.js";
 import {
   readSettings,
   readShortcutForRegistration,
+  type CleanupModelSetting,
   type TranscribeSettings,
 } from "./settings.js";
 import {
+  generateGlossary,
   offerMacOSPermissionHelp,
   openMacOSMicrophoneSettings,
   showSettingsMenu,
@@ -23,14 +25,20 @@ import { TranscribeCppBackend, type TranscriptionBackend } from "./transcription
 import {
   clearTranscribeWidget,
   RecordingMeter,
+  showTranscribeProgress,
   showTranscribeStatus,
 } from "./visualizer.js";
+import { cleanupWithLlm } from "./cleanup.js";
+import { readGlossary } from "./glossary.js";
 
 type ActiveRecording = {
   capture: MicrophoneCapture;
   backend: TranscriptionBackend;
   preparation: Promise<void>;
   meter: RecordingMeter;
+  cleanupModel: CleanupModelSetting;
+  glossary: string[];
+  editorTextAtStart: string;
 };
 
 function captureErrorMessage(error: unknown): string {
@@ -52,7 +60,11 @@ export default function piTranscribe(pi: ExtensionAPI): void {
   let recording: ActiveRecording | undefined;
   let operation: Promise<void> | undefined;
   let transcriptionAbort: AbortController | undefined;
+  let glossaryAbort: AbortController | undefined;
+  let shuttingDown = false;
   let stopListening: (() => void) | undefined;
+  let cleanupUnavailableNotified = false;
+  let cleanupFailedNotified = false;
   let settings: TranscribeSettings | undefined;
   let settingsLoaded = false;
   let settingsWarningShown = false;
@@ -81,6 +93,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
       chineseOutput: previous.chineseOutput,
       currentModelId: previous.model.id,
       microphone: previous.microphone,
+      cleanupModel: previous.cleanupModel,
     });
     if (configured) rememberSettings(configured);
     return configured;
@@ -132,6 +145,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
         return { consume: true };
       }
       if (transcriptionAbort) {
+        if (transcriptionAbort.signal.aborted) return;
         transcriptionAbort.abort();
         ctx.ui.notify("Transcription cancelled", "info");
         return { consume: true };
@@ -187,13 +201,63 @@ export default function piTranscribe(pi: ExtensionAPI): void {
         await active.preparation;
 
         showTranscribeStatus(ctx, "transcribing", { cancelable: true });
-        const text = await active.backend.transcribe(pcm, controller.signal);
+        let text = await active.backend.transcribe(pcm, controller.signal);
         const seconds = pcm.length / CAPTURE_SAMPLE_RATE;
 
-        if (text) {
+        if (text && active.cleanupModel.type !== "none") {
+          let cleanupAttempted = false;
+          if (typeof ctx.modelRegistry?.complete !== "function") {
+            if (!cleanupUnavailableNotified) {
+              cleanupUnavailableNotified = true;
+              ctx.ui.notify(
+                "Cleanup requires pi 0.84 or newer; inserting the raw transcript",
+                "warning",
+              );
+            }
+          } else {
+            cleanupAttempted = true;
+            const stopProgress = showTranscribeProgress(
+              ctx,
+              `Cleaning up transcript`,
+              { cancelable: true },
+            );
+            try {
+              const cleaned = await cleanupWithLlm(
+                ctx,
+                text,
+                active.editorTextAtStart,
+                active.glossary,
+                active.cleanupModel,
+                controller.signal,
+              );
+              if (cleaned) {
+                text = cleaned;
+              } else if (!controller.signal.aborted && !cleanupFailedNotified) {
+                cleanupFailedNotified = true;
+                ctx.ui.notify("LLM cleanup failed; inserting the raw transcript", "warning");
+              }
+            } finally {
+              stopProgress();
+            }
+          }
+
+          if (controller.signal.aborted && cleanupAttempted && !shuttingDown) {
+            // Esc during cleanup: the dictation is done, only the polish was
+            // cancelled — insert the raw transcript rather than losing it.
+            // If cleanup actually finished before the abort landed, keep its
+            // output. (Shutdown aborts the same signal but must not paste.)
+            ctx.ui.pasteToEditor(text);
+            ctx.ui.notify("Cleanup cancelled; raw transcript inserted", "info");
+          } else if (text && !controller.signal.aborted) {
+            ctx.ui.pasteToEditor(text);
+            ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
+          } else if (!controller.signal.aborted) {
+            ctx.ui.notify(`No speech detected in ${seconds.toFixed(1)}s of audio`, "warning");
+          }
+        } else if (text && !controller.signal.aborted) {
           ctx.ui.pasteToEditor(text);
           ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
-        } else {
+        } else if (!controller.signal.aborted) {
           ctx.ui.notify(`No speech detected in ${seconds.toFixed(1)}s of audio`, "warning");
         }
       } catch (error) {
@@ -230,6 +294,11 @@ export default function piTranscribe(pi: ExtensionAPI): void {
       }
     }
 
+    const glossary = await readGlossary(ctx.cwd);
+    // One notification per recording session: a transient failure must not
+    // silence every later dictation, nor spam each one.
+    cleanupUnavailableNotified = false;
+    cleanupFailedNotified = false;
     const capture = new MicrophoneCapture(
       configured.microphone.type === "device"
         ? {
@@ -238,6 +307,12 @@ export default function piTranscribe(pi: ExtensionAPI): void {
           }
         : undefined,
     );
+    let editorTextAtStart = "";
+    try {
+      editorTextAtStart = ctx.ui.getEditorText();
+    } catch {
+      // Editor content is unavailable in some modes; cleanup runs without it.
+    }
     const meter = new RecordingMeter();
     capture.onFrame = (frame) => meter.push(frame);
     meter.start(ctx);
@@ -261,7 +336,15 @@ export default function piTranscribe(pi: ExtensionAPI): void {
       configured.chineseOutput,
     );
     const preparation = backend.prepare();
-    const active: ActiveRecording = { capture, backend, preparation, meter };
+    const active: ActiveRecording = {
+      capture,
+      backend,
+      preparation,
+      meter,
+      cleanupModel: configured.cleanupModel,
+      glossary,
+      editorTextAtStart,
+    };
     recording = active;
 
     void preparation.then(
@@ -311,6 +394,33 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     },
   );
 
+  pi.registerCommand("transcribe-glossary", {
+    description: "Create or regenerate .pi/transcribe.glossary from an LLM analysis of the project",
+    handler: async (_args, ctx) => {
+      // Same guard as onboarding: custom UIs (review screen, Esc listener) are
+      // interactive-only; RPC mode reports hasUI but must not send project
+      // data to the LLM it cannot show a review for.
+      if (ctx.mode !== "tui") {
+        ctx.ui.notify("Glossary generation requires the interactive TUI", "error");
+        return;
+      }
+      if (recording) {
+        ctx.ui.notify(
+          `Stop recording with ${displayShortcut(registeredShortcut)} before generating the glossary`,
+          "warning",
+        );
+        return;
+      }
+      const controller = new AbortController();
+      glossaryAbort = controller;
+      try {
+        await runExclusive(ctx, () => generateGlossary(ctx, controller));
+      } finally {
+        if (glossaryAbort === controller) glossaryAbort = undefined;
+      }
+    },
+  });
+
   pi.registerCommand("transcribe", {
     description: "Open pi-transcribe settings",
     handler: async (_args, ctx) => {
@@ -336,7 +446,9 @@ export default function piTranscribe(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
+    shuttingDown = true;
     transcriptionAbort?.abort();
+    glossaryAbort?.abort();
     await operation?.catch(() => undefined);
 
     const active = recording;

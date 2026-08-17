@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { matchesKey } from "@earendil-works/pi-tui";
 import { getAvailableMicrophones, testMicrophonePermission } from "./audio.js";
 import { getCatalogModel } from "./catalog.js";
 import { chineseOutputSummary, isChineseLanguage } from "./chinese.js";
@@ -7,13 +8,27 @@ import {
   transcriptionLanguageSummary,
 } from "./model-picker.js";
 import { runModelSelection } from "./onboarding.js";
+import { chooseCleanupModel } from "./cleanup-model-picker.js";
+import { reviewGlossaryAdditions } from "./glossary-review.js";
+import {
+  MAX_TOTAL_SUGGESTIONS,
+  dedupeCaseInsensitive,
+  mergeGlossaryTerms,
+  readGlossary,
+  readGlossaryFile,
+  suggestGlossaryWithLlm,
+  writeGlossaryPreservingComments,
+  writeGlossaryText,
+} from "./glossary.js";
 import {
   writeSettings,
   type ChineseOutput,
+  type CleanupModelSetting,
   type MicrophoneSetting,
   type TranscribeSettings,
 } from "./settings.js";
 import { chooseShortcut, displayShortcut } from "./shortcuts.js";
+import { showTranscribeProgress } from "./visualizer.js";
 
 const MACOS_MICROPHONE_SETTINGS_URL =
   "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
@@ -31,6 +46,124 @@ function microphoneSummary(microphone: MicrophoneSetting): string {
   if (microphone.type === "system-default") return "System default";
   const duplicate = microphone.occurrence > 0 ? ` · device ${microphone.occurrence + 1}` : "";
   return `${microphone.name}${duplicate}`;
+}
+
+function cleanupModelSummary(setting: CleanupModelSetting): string {
+  if (setting.type === "none") return "Off";
+  return `${setting.provider}/${setting.id}`;
+}
+
+function glossarySummary(glossary: string[]): string {
+  if (glossary.length === 0) return "None";
+  return glossary.length === 1
+    ? glossary[0]!
+    : `${glossary[0]} +${glossary.length - 1}`;
+}
+
+/** Shared by the /transcribe menu row. */
+async function editGlossaryList(ctx: ExtensionContext): Promise<void> {
+  const fileText = await readGlossaryFile(ctx.cwd);
+  const prefill = fileText?.trim() ?? "";
+  const edited = await ctx.ui.editor(
+    "Project terms (one per line, # comments allowed) — cleanup corrects misheard terms to these",
+    prefill,
+  );
+  if (edited === undefined) return;
+
+  const meaningfulLines = edited
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+  try {
+    // Verbatim round-trip: hand-written # comments are preserved.
+    await writeGlossaryText(ctx.cwd, edited.trim());
+  } catch (error) {
+    ctx.ui.notify(
+      `Could not save glossary: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+    return;
+  }
+  ctx.ui.notify(
+    meaningfulLines.length > 0
+      ? `Glossary saved to .pi/transcribe.glossary (${meaningfulLines.length} term${meaningfulLines.length === 1 ? "" : "s"})`
+      : "Glossary cleared",
+    "info",
+  );
+}
+
+/** One-shot generator for /transcribe-glossary: writes suggestions to the file. */
+export async function generateGlossary(
+  ctx: ExtensionContext,
+  controller?: AbortController,
+): Promise<void> {
+  const signal = controller?.signal;
+  const current = await readGlossary(ctx.cwd);
+
+  // Esc cancels only the LLM call; the review screen keeps its own Esc.
+  const stopListening = ctx.ui.onTerminalInput((data) => {
+    if (!matchesKey(data, "escape")) return;
+    controller?.abort();
+    ctx.ui.notify("Glossary generation cancelled", "info");
+    return { consume: true };
+  });
+  const stopProgress = showTranscribeProgress(
+    ctx,
+    "Analyzing project files and current session for glossary terms",
+    { cancelable: true },
+  );
+  let llmTerms: string[];
+  try {
+    llmTerms = await suggestGlossaryWithLlm(ctx, signal);
+  } finally {
+    stopProgress();
+    stopListening();
+  }
+  if (signal?.aborted) return;
+
+  // Case-insensitive dedupe: prefer the first (LLM) spelling of a term.
+  const candidates = [...llmTerms];
+  const capped = dedupeCaseInsensitive(candidates).slice(0, MAX_TOTAL_SUGGESTIONS);
+  const merged = mergeGlossaryTerms(current, capped);
+  if (merged.length === 0) {
+    ctx.ui.notify("No glossary suggestions found; nothing written", "info");
+    return;
+  }
+  const additions = merged.slice(current.length);
+  if (additions.length === 0) {
+    ctx.ui.notify(`Glossary unchanged (${merged.length} terms) — nothing new found`, "info");
+    return;
+  }
+  // If shutdown aborts the controller while the review is open, resolve it
+  // immediately so shutdown does not wait on the review UI. The controller is
+  // short-lived, so the abort listener is discarded with it.
+  const chosen = await Promise.race([
+    reviewGlossaryAdditions(ctx, current.length, additions),
+    new Promise<undefined>((resolve) => {
+      if (signal?.aborted) resolve(undefined);
+      else signal?.addEventListener("abort", () => resolve(undefined), { once: true });
+    }),
+  ]);
+  if (chosen === undefined) {
+    ctx.ui.notify("Glossary unchanged — additions not applied", "info");
+    return;
+  }
+  const finalGlossary = mergeGlossaryTerms(current, chosen);
+  try {
+    await writeGlossaryPreservingComments(ctx.cwd, finalGlossary);
+  } catch (error) {
+    ctx.ui.notify(
+      `Could not save glossary: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+    return;
+  }
+  ctx.ui.notify(
+    chosen.length > 0
+      ? `Glossary updated — ${chosen.length} new term${chosen.length === 1 ? "" : "s"} (${finalGlossary.length} total) in .pi/transcribe.glossary`
+      : "Glossary unchanged — no terms selected",
+    "info",
+  );
 }
 
 async function chooseChineseOutput(
@@ -135,6 +268,7 @@ export async function showSettingsMenu(
   while (true) {
     const model = getCatalogModel(configured.model.id)!;
     const micResult = await testMicrophonePermission();
+    const glossary = await readGlossary(ctx.cwd);
     const theme = ctx.ui.theme;
     let micLine: string;
     if (micResult.status === "granted") {
@@ -159,6 +293,16 @@ export async function showSettingsMenu(
       "Chinese output",
       chineseOutputSummary(configured.chineseOutput),
     );
+    const cleanupChoice = settingChoice(
+      theme,
+      "Cleanup",
+      cleanupModelSummary(configured.cleanupModel),
+    );
+    const glossaryChoice = settingChoice(
+      theme,
+      "Glossary",
+      glossarySummary(glossary),
+    );
     const microphoneChoice = settingChoice(
       theme,
       "Microphone",
@@ -179,6 +323,8 @@ export async function showSettingsMenu(
       modelChoice,
       languageChoice,
       ...(showChineseOutput ? [chineseOutputChoice] : []),
+      cleanupChoice,
+      glossaryChoice,
       microphoneChoice,
       shortcutChoice,
       "Done",
@@ -200,6 +346,7 @@ export async function showSettingsMenu(
         chineseOutput: configured.chineseOutput,
         currentModelId: configured.model.id,
         microphone: configured.microphone,
+        cleanupModel: configured.cleanupModel,
         onPreferredLanguagesChange: async (preferredLanguages) => {
           const updated: TranscribeSettings = { ...configured, preferredLanguages };
           await writeSettings(updated);
@@ -237,6 +384,24 @@ export async function showSettingsMenu(
       await writeSettings(updated);
       Object.assign(configured, updated);
       ctx.ui.notify(`Chinese output saved as ${chineseOutputSummary(chineseOutput)}`, "info");
+      continue;
+    }
+    if (choice === cleanupChoice) {
+      const cleanupModel = await chooseCleanupModel(ctx, configured.cleanupModel);
+      if (!cleanupModel) continue;
+      const updated: TranscribeSettings = { ...configured, cleanupModel };
+      await writeSettings(updated);
+      Object.assign(configured, updated);
+      ctx.ui.notify(
+        cleanupModel.type === "none"
+          ? "Cleanup disabled: raw transcript is inserted"
+          : `Cleanup enabled with ${cleanupModelSummary(cleanupModel)}`,
+        "info",
+      );
+      continue;
+    }
+    if (choice === glossaryChoice) {
+      await editGlossaryList(ctx);
       continue;
     }
     if (choice === microphoneChoice) {

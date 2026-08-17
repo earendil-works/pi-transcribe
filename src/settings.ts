@@ -21,6 +21,36 @@ export const DEFAULT_MICROPHONE: MicrophoneSetting = { type: "system-default" };
 
 export type ChineseOutput = "simplified" | "traditional-taiwan" | "traditional-hong-kong";
 
+export type CleanupModelSetting =
+  | { type: "none" }
+  | { type: "specific"; provider: string; id: string };
+
+/** No model pinned means cleanup is off. */
+export const DEFAULT_CLEANUP_MODEL: CleanupModelSetting = { type: "none" };
+
+export function cleanupModelsEqual(
+  left: CleanupModelSetting,
+  right: CleanupModelSetting,
+): boolean {
+  if (left.type === "none" || right.type === "none") return left.type === right.type;
+  return left.provider === right.provider && left.id === right.id;
+}
+
+function validateCleanupModel(value: unknown): CleanupModelSetting {
+  if (isObject(value) && value.type === "none") return { type: "none" };
+  if (
+    isObject(value) &&
+    value.type === "specific" &&
+    typeof value.provider === "string" &&
+    value.provider.trim().length > 0 &&
+    typeof value.id === "string" &&
+    value.id.trim().length > 0
+  ) {
+    return { type: "specific", provider: value.provider.trim(), id: value.id.trim() };
+  }
+  return DEFAULT_CLEANUP_MODEL;
+}
+
 function defaultChineseOutput(): ChineseOutput {
   const locale = Intl.DateTimeFormat().resolvedOptions().locale;
   const subtags = locale.toLowerCase().split("-");
@@ -40,6 +70,7 @@ export type TranscribeSettings = {
   transcriptionLanguage: TranscriptionLanguage;
   chineseOutput: ChineseOutput;
   microphone: MicrophoneSetting;
+  cleanupModel: CleanupModelSetting;
   model: {
     source: "catalog";
     id: string;
@@ -147,6 +178,7 @@ function validateSettings(value: unknown): TranscribeSettings | undefined {
     ),
     chineseOutput: validateChineseOutput(value.chineseOutput),
     microphone,
+    cleanupModel: validateCleanupModel(value.cleanupModel),
     model: {
       source: "catalog",
       id: value.model.id,
@@ -199,6 +231,7 @@ type ModelSettingsOptions = {
   transcriptionLanguage?: TranscriptionLanguage;
   chineseOutput?: ChineseOutput;
   microphone?: MicrophoneSetting;
+  cleanupModel?: CleanupModelSetting;
 };
 
 export function settingsForModel(
@@ -223,6 +256,7 @@ export function settingsForModel(
     ),
     chineseOutput: options.chineseOutput ?? defaultChineseOutput(),
     microphone: { ...(options.microphone ?? DEFAULT_MICROPHONE) },
+    cleanupModel: options.cleanupModel ?? DEFAULT_CLEANUP_MODEL,
     model: { source: "catalog", id: modelId, path: modelPath },
   };
 }

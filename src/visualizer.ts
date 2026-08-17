@@ -1,3 +1,4 @@
+import { Loader } from "@earendil-works/pi-tui";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CAPTURE_SAMPLE_RATE } from "./audio.js";
 
@@ -111,6 +112,37 @@ export function showTranscribeStatus(
   const theme = ctx.ui.theme;
   const hint = options?.cancelable ? `  ${theme.fg("dim", "esc to cancel")}` : "";
   ctx.ui.setWidget(WIDGET_KEY, [`${theme.fg("muted", text)}${hint}`]);
+}
+
+/** Loader that stops its animation when the widget is disposed (pi's own pattern). */
+class ProgressLoader extends Loader {
+  dispose(): void {
+    this.stop();
+  }
+}
+
+/**
+ * Shows an animated progress widget (pi's Loader component); call the returned
+ * function to stop and remove it.
+ */
+export function showTranscribeProgress(
+  ctx: ExtensionContext,
+  label: string,
+  options?: { cancelable?: boolean },
+): () => void {
+  if (!ctx.hasUI) return () => undefined;
+  const hint = options?.cancelable ? "  esc to cancel" : "";
+  ctx.ui.setWidget(WIDGET_KEY, (tui, theme) => {
+    const loader = new ProgressLoader(
+      tui,
+      (spinner) => theme.fg("muted", spinner),
+      (text) => theme.fg("muted", text),
+      `${label}${hint}`,
+    );
+    loader.start();
+    return loader;
+  });
+  return () => ctx.ui.setWidget(WIDGET_KEY, undefined);
 }
 
 export function clearTranscribeWidget(ctx: ExtensionContext): void {

@@ -27,6 +27,7 @@ import {
   settingsForModel,
   writeSettings,
   type ChineseOutput,
+  type CleanupModelSetting,
   type MicrophoneSetting,
   type TranscribeSettings,
   type TranscriptionLanguage,
@@ -89,6 +90,7 @@ type ModelSelectionOptions = {
   chineseOutput?: ChineseOutput;
   currentModelId?: string;
   microphone?: MicrophoneSetting;
+  cleanupModel?: CleanupModelSetting;
   onPreferredLanguagesChange?: (languages: string[]) => Promise<void>;
 };
 
@@ -200,6 +202,7 @@ export async function runModelSelection(
         transcriptionLanguage: options.transcriptionLanguage,
         chineseOutput: options.chineseOutput,
         microphone: options.microphone ?? DEFAULT_MICROPHONE,
+        cleanupModel: options.cleanupModel,
       });
       await writeSettings(settings);
       ctx.ui.notify(`${model.name} is ready for local transcription`, "info");
