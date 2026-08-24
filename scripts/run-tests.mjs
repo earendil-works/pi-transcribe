@@ -28,6 +28,7 @@ try {
   await run(process.execPath, [
     "--test",
     join(outputDirectory, "test", "async-limiter.test.js"),
+    join(outputDirectory, "test", "events.test.js"),
     join(outputDirectory, "test", "transcription-service.test.js"),
   ]);
 } finally {

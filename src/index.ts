@@ -1,4 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+  createPiTranscribeEventBridge,
+  emitPiTranscribeState,
+} from "./events.js";
 import { registerFileTranscriptionTool } from "./file-transcription.js";
 import type { PiTranscribeRuntime } from "./runtime.js";
 import { STATUS_WIDGET_KEY } from "./shortcut-core.js";
@@ -25,6 +32,21 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     return loading;
   }
 
+  async function toggleCapture(ctx: ExtensionContext): Promise<void> {
+    let runtime: PiTranscribeRuntime;
+    try {
+      runtime = await loadRuntime();
+    } catch (error) {
+      emitPiTranscribeState(pi.events, "idle");
+      throw error;
+    }
+    await runtime.toggleCapture(ctx);
+  }
+
+  const eventBridge = createPiTranscribeEventBridge(pi.events, (ctx) => {
+    void toggleCapture(ctx).catch(() => undefined);
+  });
+
   const fileTranscription = registerFileTranscriptionTool(pi, {
     getSettings: async () => (await loadRuntime()).requireConfiguredSettingsForTool(),
     getService: async () => (await loadRuntime()).service,
@@ -44,7 +66,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
           ]);
         }
         try {
-          await (await loadRuntime()).toggleCapture(ctx);
+          await toggleCapture(ctx);
         } catch (error) {
           if (ctx.hasUI) ctx.ui.setWidget(STATUS_WIDGET_KEY, undefined);
           throw error;
@@ -65,8 +87,13 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     });
   }
 
+  pi.on("session_start", async (_event, ctx) => {
+    eventBridge.sessionStarted(ctx);
+  });
+
   pi.on("session_shutdown", async (_event, ctx) => {
     shuttingDown = true;
+    eventBridge.shutdown();
     await fileTranscription.shutdown().catch(() => undefined);
     const loading = runtimePromise;
     if (!loading) return;
@@ -74,3 +101,10 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     await runtime?.shutdown(ctx).catch(() => undefined);
   });
 }
+
+export {
+  PI_TRANSCRIBE_STATE_EVENT,
+  PI_TRANSCRIBE_TOGGLE_EVENT,
+  type PiTranscribeState,
+  type PiTranscribeStateEvent,
+} from "./events.js";

@@ -41,6 +41,19 @@ Then run `/transcribe-onboarding` to replay the complete onboarding flow. The co
 
 Press the shortcut while Pi has focus, speak, then press it again. A live level meter appears above the editor while recording. `Esc` cancels. Audio is transcribed locally and inserted at the editor cursor. The shortcut is a Pi terminal binding, not a global OS hotkey.
 
+## Inter-extension events
+
+Extensions in the same Pi process can toggle dictation and observe its state through `pi.events`:
+
+```ts
+pi.events.emit("pi-transcribe:toggle", {});
+pi.events.on("pi-transcribe:state", (event) => {
+  // { state: "starting" | "recording" | "transcribing" | "idle" }
+});
+```
+
+The toggle payload is ignored. Toggles outside an active session are ignored, and toggles during another pi-transcribe operation do not start concurrent work. Event constants and state types are exported from `src/events.ts` and re-exported by `src/index.ts`.
+
 ## File transcription and FFmpeg
 
 The agent can call `transcribe_file` for local audio or video files. Transcription jobs share one loaded model; queued files reuse it, while microphone dictation runs before waiting file jobs after any active job finishes. To bound memory use, at most two file operations are admitted at once, only one FFmpeg decoder runs at a time, and decoded audio is limited to 128 MiB (about 35 minutes). File decoding requires the `ffmpeg` executable; microphone dictation does not. Install FFmpeg with your system package manager:
