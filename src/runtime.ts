@@ -7,6 +7,10 @@ import { matchesKey } from "@earendil-works/pi-tui";
 import { existsSync } from "node:fs";
 import { CAPTURE_SAMPLE_RATE } from "./audio-constants.js";
 import type { MicrophoneCapture } from "./audio.js";
+import {
+  emitPiTranscribeState,
+  type PiTranscribeState,
+} from "./events.js";
 import type { TranscribeSettings } from "./settings.js";
 import { displayShortcut } from "./shortcut-core.js";
 import {
@@ -63,6 +67,13 @@ export function createPiTranscribeRuntime(
   let audioModulePromise: Promise<typeof import("./audio.js")> | undefined;
   let visualizerModulePromise: Promise<typeof import("./visualizer.js")> | undefined;
   const transcriptionService = new TranscriptionService();
+  let lifecycleState: PiTranscribeState = "idle";
+
+  function emitState(state: PiTranscribeState): void {
+    if (state === lifecycleState) return;
+    lifecycleState = state;
+    emitPiTranscribeState(pi.events, state);
+  }
 
   function loadAudio(): Promise<typeof import("./audio.js")> {
     return (audioModulePromise ??= import("./audio.js"));
@@ -198,6 +209,7 @@ export function createPiTranscribeRuntime(
     } catch {
       // Discarded either way.
     } finally {
+      emitState("idle");
       active.reservation.cancel();
       clearCancelListener();
       ctx.ui.notify("Recording discarded", "info");
@@ -205,6 +217,7 @@ export function createPiTranscribeRuntime(
   }
 
   async function stopAndTranscribe(ctx: ExtensionContext): Promise<void> {
+    emitState("transcribing");
     const { clearTranscribeWidget, showTranscribeStatus } = await loadVisualizer();
     const active = recording!;
     recording = undefined;
@@ -325,6 +338,7 @@ export function createPiTranscribeRuntime(
 
     listenForCancel(ctx);
     ctx.ui.notify("Microphone recording started", "info");
+    emitState("recording");
   }
 
   async function toggleCaptureTask(ctx: ExtensionContext): Promise<void> {
@@ -333,6 +347,7 @@ export function createPiTranscribeRuntime(
       return;
     }
 
+    emitState("starting");
     // First-press module loading and microphone initialization take a
     // noticeable moment; show feedback until the recording meter takes over.
     // Static text on the shared widget slot: an animated spinner repaints every
@@ -340,11 +355,14 @@ export function createPiTranscribeRuntime(
     const { clearTranscribeWidget, showTranscribeStatus } = await loadVisualizer();
     showTranscribeStatus(ctx, "Starting microphone…");
 
-    const configured = await ensureSettings(ctx);
-    if (configured) await startRecording(ctx, configured);
-    // The meter shares the widget slot and has replaced the spinner when
-    // recording began; clear the spinner only when recording never started.
-    if (!recording) clearTranscribeWidget(ctx);
+    try {
+      const configured = await ensureSettings(ctx);
+      if (configured) await startRecording(ctx, configured);
+    } finally {
+      // The meter shares the widget slot and has replaced the spinner when
+      // recording began; clear the spinner only when recording never started.
+      if (!recording) clearTranscribeWidget(ctx);
+    }
   }
 
   function runExclusive(
@@ -356,7 +374,7 @@ export function createPiTranscribeRuntime(
       return operation;
     }
 
-    const nextOperation = task().finally(() => {
+    const nextOperation = Promise.resolve().then(task).finally(() => {
       if (operation === nextOperation) operation = undefined;
     });
     operation = nextOperation;
@@ -364,7 +382,13 @@ export function createPiTranscribeRuntime(
   }
 
   async function toggleCapture(ctx: ExtensionContext): Promise<void> {
-    await runExclusive(ctx, () => toggleCaptureTask(ctx));
+    await runExclusive(ctx, async () => {
+      try {
+        await toggleCaptureTask(ctx);
+      } finally {
+        if (!recording) emitState("idle");
+      }
+    });
   }
 
   async function showSettings(ctx: ExtensionCommandContext): Promise<void> {
@@ -429,6 +453,7 @@ export function createPiTranscribeRuntime(
       const visualizer = await visualizerModulePromise.catch(() => undefined);
       visualizer?.clearTranscribeWidget(ctx);
     }
+    emitState("idle");
   }
 
   return {
