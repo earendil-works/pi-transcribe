@@ -148,10 +148,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 92,
     "recommended": true,
     "recommendedRank": 4,
-    "quant": "Q5_K_M",
-    "filename": "cohere-transcribe-03-2026-Q5_K_M.gguf",
-    "size": 1770270208,
-    "sha256": "14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558"
+    "quant": "Q8_0",
+    "filename": "cohere-transcribe-03-2026-Q8_0.gguf",
+    "size": 2410655232,
+    "sha256": "931916663432fd895423a4291a8400221802b288967ca2d435fc5e3141c9e71e"
   },
   {
     "id": "whisper-medium",
@@ -310,10 +310,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 87,
     "recommended": false,
     "recommendedRank": 6,
-    "quant": "Q5_K_M",
-    "filename": "Voxtral-Mini-4B-Realtime-2602-Q5_K_M.gguf",
-    "size": 3281439008,
-    "sha256": "e20a7582c5cf8159454c909b7f57b184b287cb3d7c3ec85744727a2cec51b08f"
+    "quant": "Q8_0",
+    "filename": "Voxtral-Mini-4B-Realtime-2602-Q8_0.gguf",
+    "size": 4731791648,
+    "sha256": "6fb22249463c1e7a600d920ad732e2dd0a231510e9db59fb8061d3d1d48d0c67"
   },
   {
     "id": "parakeet-tdt-0.6b-v3",
@@ -526,10 +526,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "canary-1b-flash-Q5_K_M.gguf",
-    "size": 769563424,
-    "sha256": "7eed3cac92f255a4adbd518c58663d3fbf65984d2619189e593f2d374b05c601"
+    "quant": "Q8_0",
+    "filename": "canary-1b-flash-Q8_0.gguf",
+    "size": 1048131360,
+    "sha256": "9b99e0881d883467e0a03ceb0968dba888c9f8921b73355143ad8b67931e08ce"
   },
   {
     "id": "canary-1b-v2",
@@ -576,10 +576,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 88,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "canary-1b-v2-Q5_K_M.gguf",
-    "size": 836664032,
-    "sha256": "9c3a893c93795438baf9b4b1c853c39b60316c3a0d259a3ba6e284712f5ddb71"
+    "quant": "Q8_0",
+    "filename": "canary-1b-v2-Q8_0.gguf",
+    "size": 1144290016,
+    "sha256": "224f83d1bc487b3303b495a7d6874912fdece93de19d1a04b550829c30a5d289"
   },
   {
     "id": "canary-1b",
@@ -605,10 +605,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "canary-1b-Q5_K_M.gguf",
-    "size": 837694272,
-    "sha256": "1139f01aad4ed4208d2c0532cfc25939cbc26cea1e160084c83f40d5b6eaed35"
+    "quant": "Q8_0",
+    "filename": "canary-1b-Q8_0.gguf",
+    "size": 1162740288,
+    "sha256": "0b5d28516bcde9402d5eba34fc4a79c95b84b27954f05e5f8993d67df2857b62"
   },
   {
     "id": "canary-qwen-2.5b",
@@ -631,10 +631,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "canary-qwen-2.5b-Q5_K_M.gguf",
-    "size": 1983729024,
-    "sha256": "d71b1d9ae442dc538665ed4df63a69520eb9be769ec0bc78c7d2f40040928306"
+    "quant": "Q8_0",
+    "filename": "canary-qwen-2.5b-Q8_0.gguf",
+    "size": 2797548928,
+    "sha256": "d89aad1285d5bd5aa441c464d3a4cf37bd5474f70705408e71558d8627415b34"
   },
   {
     "id": "cohere-transcribe-arabic-07-2026",
@@ -658,10 +658,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 48,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "cohere-transcribe-arabic-07-2026-Q5_K_M.gguf",
-    "size": 1770270112,
-    "sha256": "55e61c9b047e36f0e084d367f6b0bfecc71a6a0527da6eea4f0c687f3584775f"
+    "quant": "Q8_0",
+    "filename": "cohere-transcribe-arabic-07-2026-Q8_0.gguf",
+    "size": 2410655136,
+    "sha256": "910de5c9c57f9fd8a280e1701f9cd96f63768878c1ca9e4ecf23638a5e0fef16"
   },
   {
     "id": "Fun-ASR-Nano-2512",
@@ -820,10 +820,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 92,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "granite-speech-4.1-2b-nar-Q5_K_M.gguf",
-    "size": 1782089344,
-    "sha256": "88d7c7b5b8b59c95bb6580a1e7d5d81cae63943cef71405ff477527b0bb69fca"
+    "quant": "Q8_0",
+    "filename": "granite-speech-4.1-2b-nar-Q8_0.gguf",
+    "size": 2498105472,
+    "sha256": "4762df797b9efa1ce0d73d2f5128517c86fdfdba2e9d00cd5cca97e624760b21"
   },
   {
     "id": "granite-4.0-1b-speech",
@@ -851,10 +851,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 91,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "granite-4.0-1b-speech-Q5_K_M.gguf",
-    "size": 1829704544,
-    "sha256": "f5e371d2a894e5b30dce793d573df2a965d7705488750b4ef5a6cad1069e2572"
+    "quant": "Q8_0",
+    "filename": "granite-4.0-1b-speech-Q8_0.gguf",
+    "size": 2559878848,
+    "sha256": "1a48716efce9468bc99f33619e15942ae6a262f7ef51883c3c39b519302a533f"
   },
   {
     "id": "granite-speech-4.1-2b",
@@ -882,10 +882,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 92,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "granite-speech-4.1-2b-Q5_K_M.gguf",
-    "size": 1829704544,
-    "sha256": "63e0d3a82fa6f0f4688af0b7d7ee784864d271b7be820f4ea43c8298c59b0ac5"
+    "quant": "Q8_0",
+    "filename": "granite-speech-4.1-2b-Q8_0.gguf",
+    "size": 2559878848,
+    "sha256": "8c0b2dce2861feb1dba91e9d59f2ab4a9c23ad808bff86465151576e096ec7a6"
   },
   {
     "id": "granite-speech-4.1-2b-plus",
@@ -912,10 +912,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "granite-speech-4.1-2b-plus-Q5_K_M.gguf",
-    "size": 1691297088,
-    "sha256": "3415f2c2d5979ded038dc012e5a875d77602fa5a0699cc75ee7fa47991f42530"
+    "quant": "Q8_0",
+    "filename": "granite-speech-4.1-2b-plus-Q8_0.gguf",
+    "size": 2345973152,
+    "sha256": "a2ffe6c8db730f3eb3719ad0ac27016cad30c87b18cd33e214c7b2083e38ce10"
   },
   {
     "id": "medasr",
@@ -1536,10 +1536,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 88,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "parakeet-ctc-1.1b-Q5_K_M.gguf",
-    "size": 928584736,
-    "sha256": "8b38f60bb1c56b518953a39703068adc09991993b5aab52782e038a86a6c04cc"
+    "quant": "Q8_0",
+    "filename": "parakeet-ctc-1.1b-Q8_0.gguf",
+    "size": 1259869216,
+    "sha256": "4f66c66bdef2c6901384a218a01d8a614698010e880bbdfe44f3bcf0b11ae0f2"
   },
   {
     "id": "parakeet-tdt-1.1b",
@@ -1562,10 +1562,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 91,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "parakeet-tdt-1.1b-Q5_K_M.gguf",
-    "size": 935758496,
-    "sha256": "18c22888fed10676fde72fdd5b833fab9175a6abf4e0cb390eb0a59b0b107cd3"
+    "quant": "Q8_0",
+    "filename": "parakeet-tdt-1.1b-Q8_0.gguf",
+    "size": 1267288736,
+    "sha256": "8479e1ed0b7244e293ed81f547c69074a38c00e17511d8ecae2d273bc7b2ceda"
   },
   {
     "id": "parakeet-rnnt-1.1b",
@@ -1588,10 +1588,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 91,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "parakeet-rnnt-1.1b-Q5_K_M.gguf",
-    "size": 935755008,
-    "sha256": "8ee2ead0c30773440743591cd8a9f8ac180c27f450c9b053805b2bab6bf352cb"
+    "quant": "Q8_0",
+    "filename": "parakeet-rnnt-1.1b-Q8_0.gguf",
+    "size": 1267285248,
+    "sha256": "e1918556aa0e2b857c12cb365cff4f33b0f1cbcc0e0769499ec38948c8363775"
   },
   {
     "id": "parakeet-tdt_ctc-1.1b",
@@ -1614,10 +1614,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 88,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "parakeet-tdt_ctc-1.1b-Q5_K_M.gguf",
-    "size": 935758080,
-    "sha256": "da23eb8c78fe3813b88f616db85e8191cfbfffdbc2b8bb8bd74a94eb8987caee"
+    "quant": "Q8_0",
+    "filename": "parakeet-tdt_ctc-1.1b-Q8_0.gguf",
+    "size": 1267288320,
+    "sha256": "56e826b96d0a625eb41f18d8f51d8600e8ec5959bf5278fe3929e5efefe787d6"
   },
   {
     "id": "Qwen3-ASR-1.7B",
@@ -1669,10 +1669,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "Qwen3-ASR-1.7B-Q5_K_M.gguf",
-    "size": 1517290464,
-    "sha256": "034c557fe92ff8fcd9a9c041cbdaad347be0a86a58d3a348f63cf3f0180879d0"
+    "quant": "Q8_0",
+    "filename": "Qwen3-ASR-1.7B-Q8_0.gguf",
+    "size": 2185030624,
+    "sha256": "9a0d81792dfea2d5f278b8a63deb3ea6e02139ce42c2301f32ea19c4f77526b7"
   },
   {
     "id": "SenseVoiceSmall",
@@ -1732,10 +1732,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 88,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "Voxtral-Mini-3B-2507-Q5_K_M.gguf",
-    "size": 3464182432,
-    "sha256": "9ea2eb85359f7771270715849dc2b0e80381a59dab09d9c5d85352ab9c53f675"
+    "quant": "Q8_0",
+    "filename": "Voxtral-Mini-3B-2507-Q8_0.gguf",
+    "size": 5000084128,
+    "sha256": "06b4dd04e32953ccab0d417125bdd728ec031431596ed5e80123c3c66f29ddc2"
   },
   {
     "id": "Voxtral-Small-24B-2507",
@@ -1765,10 +1765,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 90,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "Voxtral-Small-24B-2507-Q5_K_M.gguf",
-    "size": 17138659808,
-    "sha256": "a53f73a5f63b7663fe155977616a636acac567dac898f6ef82ca519017e8b6e7"
+    "quant": "Q8_0",
+    "filename": "Voxtral-Small-24B-2507-Q8_0.gguf",
+    "size": 25810383328,
+    "sha256": "ab0964350131990a364dca53e3cac5f4d9cc176dce2f273066be3ef71e252fb2"
   },
   {
     "id": "whisper-tiny",
@@ -2490,10 +2490,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 86,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "Breeze-ASR-25-Q5_K_M.gguf",
-    "size": 1160366080,
-    "sha256": "c871fc811b33a16a5607c4d4166cfa2c0a1d359f7796e3da255e3e922f59139b"
+    "quant": "Q8_0",
+    "filename": "Breeze-ASR-25-Q8_0.gguf",
+    "size": 1667964224,
+    "sha256": "1650c163cd1623d13b585368ffd87d7e669c5ff23014511e0fa91bb4ce994756"
   },
   {
     "id": "whisper-large",
@@ -2614,10 +2614,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 83,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "whisper-large-Q5_K_M.gguf",
-    "size": 1160366048,
-    "sha256": "b1dfb9fa0e9b0574d8c822f51662b8e59915831e1a3ca0d191f18ff8ba742639"
+    "quant": "Q8_0",
+    "filename": "whisper-large-Q8_0.gguf",
+    "size": 1667964192,
+    "sha256": "0b9c63f73c68327d6ba2386e40c4a4dc46a9e7114a78c93a464b48b72c001547"
   },
   {
     "id": "whisper-large-v2",
@@ -2738,10 +2738,10 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 84,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "whisper-large-v2-Q5_K_M.gguf",
-    "size": 1160366080,
-    "sha256": "94fab1289a98d26bf375174a8daa00f44c7b16a9944726dde05361e5a8bd07ff"
+    "quant": "Q8_0",
+    "filename": "whisper-large-v2-Q8_0.gguf",
+    "size": 1667964224,
+    "sha256": "704603cff0f82ddd7f7f51045e12e5c8f85a37a9edec72ab10fd8ede32220702"
   },
   {
     "id": "whisper-large-v3",
@@ -2863,9 +2863,9 @@ export const CATALOG_MODELS_GENERATED = [
     "accuracyScore": 89,
     "recommended": false,
     "recommendedRank": null,
-    "quant": "Q5_K_M",
-    "filename": "whisper-large-v3-Q5_K_M.gguf",
-    "size": 1161143008,
-    "sha256": "6053d0fd69a0fd48b8fea5ea7a52b9e0cde389343566fa30e453a1b2b258dc38"
+    "quant": "Q8_0",
+    "filename": "whisper-large-v3-Q8_0.gguf",
+    "size": 1668741440,
+    "sha256": "2fa1a5f179f8a511a53e2108db270aa4af3ce08cd976af4180e2854666bb4ba3"
   }
 ] as const;
