@@ -19,7 +19,7 @@ import { DEFAULT_SHORTCUT } from "./shortcut-core.js";
 
 function requireTui(ctx: ExtensionContext): boolean {
   if (ctx.mode === "tui") return true;
-  ctx.ui.notify("pi-transcribe configuration requires the interactive TUI", "error");
+  ctx.ui.notify("Pi Voice configuration requires the interactive TUI", "error");
   return false;
 }
 

@@ -149,7 +149,7 @@ export function createPiTranscribeRuntime(
       : await configureFirstRun(ctx);
     if (configured) {
       ctx.ui.notify(
-        `Setup complete. Press ${displayShortcut(registeredShortcut)} to start recording and press it again to transcribe. Use /transcribe for settings.`,
+        `Setup complete. Press ${displayShortcut(registeredShortcut)} to start recording and press it again to transcribe. Use /voice for settings.`,
         "info",
       );
     }
@@ -160,17 +160,17 @@ export function createPiTranscribeRuntime(
     await loadSettingsOnce();
     if (settingsReadWarning) {
       throw new Error(
-        `${settingsReadWarning} Ask the user to run /transcribe in Pi's interactive TUI to configure a local model, then retry transcribe_file.`,
+        `${settingsReadWarning} Ask the user to run /voice in Pi's interactive TUI to configure a local model, then retry transcribe_file.`,
       );
     }
     if (!settings) {
       throw new Error(
-        "pi-transcribe is not configured. Ask the user to run /transcribe in Pi's interactive TUI once to choose and download a local model, then retry transcribe_file.",
+        "Pi Voice is not configured. Ask the user to run /voice in Pi's interactive TUI once to choose and download a local model, then retry transcribe_file.",
       );
     }
     if (!existsSync(settings.model.path)) {
       throw new Error(
-        `The configured transcription model is missing: ${settings.model.path}. Ask the user to run /transcribe and choose a model again, then retry transcribe_file.`,
+        `The configured transcription model is missing: ${settings.model.path}. Ask the user to run /voice and choose a model again, then retry transcribe_file.`,
       );
     }
     return settings;
@@ -377,7 +377,7 @@ export function createPiTranscribeRuntime(
     task: () => Promise<void>,
   ): Promise<void> {
     if (operation) {
-      ctx.ui.notify("A pi-transcribe operation is already in progress", "warning");
+      ctx.ui.notify("A Pi Voice operation is already in progress", "warning");
       return operation;
     }
 
@@ -431,7 +431,7 @@ export function createPiTranscribeRuntime(
       );
       if (!configured) return;
       rememberSettings(configured);
-      ctx.ui.notify("Onboarding replay complete", "info");
+      ctx.ui.notify("Pi Voice onboarding replay complete", "info");
     });
   }
 

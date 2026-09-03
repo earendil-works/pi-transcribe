@@ -21,7 +21,7 @@ type SelectedMicrophone = {
 
 export class MicrophoneUnavailableError extends Error {
   constructor(name: string) {
-    super(`Selected microphone is unavailable: ${name}. Open /transcribe and choose another microphone.`);
+    super(`Selected microphone is unavailable: ${name}. Open /voice and choose another microphone.`);
     this.name = "MicrophoneUnavailableError";
   }
 }
