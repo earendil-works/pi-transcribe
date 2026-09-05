@@ -11,7 +11,6 @@ import {
   fuzzyFilter,
   Input,
   Key,
-  Loader,
   matchesKey,
   Spacer,
   Text,
@@ -24,20 +23,24 @@ import {
   CATALOG_MODELS,
   catalogModelSearchText,
   canonicalLanguage,
+  languageIdentity,
   displayLanguage,
   formatBinarySize,
-  getCatalogLanguages,
   modelMatchesLanguage,
   rankCatalogModels,
   type CatalogModel,
 } from "./catalog.js";
+import { getPreferredRecommendationLanguages } from "./recommendations.js";
+import { ModelSelectionController } from "./model-selection-controller.js";
+import type { CatalogModelActivation } from "./model-activation.js";
+export type { CatalogModelActivation } from "./model-activation.js";
 import {
-  findCachedCatalogModel,
   findIncompleteDownload,
   type CachedCatalogModel,
 } from "./models.js";
 import type { TranscriptionLanguage } from "./settings.js";
 import {
+  DownloadPanel,
   LIST_PADDING,
   MIN_VISIBLE_ROWS,
   PANEL_PADDING,
@@ -53,10 +56,9 @@ import {
 type UiTheme = ExtensionContext["ui"]["theme"];
 
 const MAX_VISIBLE_LANGUAGES = 9;
+const PREFERRED_RECOMMENDATION_LANGUAGES =
+  getPreferredRecommendationLanguages(CATALOG_MODELS);
 const MAX_VISIBLE_MODELS = 10;
-const DOWNLOAD_BAR_WIDTH = 36;
-// Rolling window for the download speed estimate.
-const SPEED_WINDOW_MS = 5000;
 
 function formatEta(seconds: number): string {
   if (seconds < 90) return `~${Math.max(1, Math.round(seconds))}s left`;
@@ -94,6 +96,7 @@ export class LanguagePicker extends Container implements Focusable {
   private readonly list = new Container();
   private readonly footer = new Text("", TEXT_PADDING, 0);
   private readonly selected: Set<string>;
+  private readonly available: readonly string[];
   private ordered: string[] = [];
   private filtered: string[] = [];
   private selectedIndex = 0;
@@ -117,22 +120,42 @@ export class LanguagePicker extends Container implements Focusable {
     initial: readonly string[],
     private readonly cancelLabel: string,
     private readonly done: (result: LanguageSelection | undefined) => void,
+    private readonly onboarding = false,
   ) {
     super();
-    const available = getCatalogLanguages();
-    this.selected = new Set(
-      initial.map(canonicalLanguage).filter((language) => available.includes(language)),
-    );
+    // Benchmark filtering controls new choices, not existing preferences.
+    // Keep saved languages visible and removable even if their support worsens.
+    this.selected = new Set(initial.map(languageIdentity).filter(Boolean));
+    this.available = [...new Set([...PREFERRED_RECOMMENDATION_LANGUAGES, ...this.selected])];
     this.reorder();
 
     this.addChild(panelBorder(theme));
     this.addChild(new Spacer(1));
     this.addChild(
-      new Text(theme.fg("accent", theme.bold("Select the languages you speak")), TEXT_PADDING, 0),
+      new Text(
+        theme.fg(
+          "accent",
+          theme.bold(onboarding ? "Set up pi-transcribe · 1 of 3" : "Select the languages you speak"),
+        ),
+        TEXT_PADDING,
+        0,
+      ),
     );
     this.addChild(
       new Text(
-        theme.fg("muted", "Used to recommend models"),
+        onboarding
+          ? "Which languages will you speak to Pi in?"
+          : theme.fg("muted", "Used to recommend models"),
+        TEXT_PADDING,
+        0,
+      ),
+    );
+    this.addChild(
+      new Text(
+        theme.fg(
+          "muted",
+          "Don't see yours? No available model benchmarks well enough to recommend yet.",
+        ),
         TEXT_PADDING,
         0,
       ),
@@ -153,13 +176,15 @@ export class LanguagePicker extends Container implements Focusable {
   }
 
   private selectedLanguages(): string[] {
-    return getCatalogLanguages().filter((language) => this.selected.has(language));
+    return this.available.filter((language) =>
+      this.selected.has(language),
+    );
   }
 
   // Selected languages are pinned to the top of the list so the current
   // selection is always visible without scrolling.
   private reorder(): void {
-    const available = getCatalogLanguages();
+    const available = this.available;
     this.ordered = [
       ...available.filter((language) => this.selected.has(language)),
       ...available.filter((language) => !this.selected.has(language)),
@@ -351,17 +376,6 @@ export type CatalogModelPickerOptions = {
   activatedInFlow?: boolean;
 };
 
-export type CatalogModelActivation = (
-  model: CatalogModel,
-  options: {
-    cached: CachedCatalogModel | undefined;
-    signal: AbortSignal;
-    onProgress: (progress: { downloaded: number; total: number }) => void;
-  },
-) => Promise<{ path: string }>;
-
-type CatalogModelPickerMode = "models" | "downloading";
-
 export class CatalogModelPicker extends Container implements Focusable {
   private readonly search = new Input();
   private readonly searchBox = new Box(LIST_PADDING, 0);
@@ -370,7 +384,11 @@ export class CatalogModelPicker extends Container implements Focusable {
   private readonly list = new Container();
   private readonly detail = new Text("", TEXT_PADDING, 0);
   private readonly footer = new Text("", TEXT_PADDING, 0);
-  private readonly cachedById = new Map<string, CachedCatalogModel>();
+  private readonly selection: ModelSelectionController<CatalogModelPickerResult | undefined>;
+  private get cachedById(): Map<string, CachedCatalogModel> { return this.selection.cachedById; }
+  private get mode(): "models" | "downloading" { return this.selection.download ? "downloading" : "models"; }
+  private get feedback() { return this.selection.feedback; }
+  private get selectedDuringSession(): boolean { return this.selection.selectedDuringSession; }
   private readonly models: CatalogModel[];
   private readonly languageColumns: readonly string[];
   /** Widest model name / formatted size in the catalog; column ceilings. */
@@ -382,20 +400,7 @@ export class CatalogModelPicker extends Container implements Focusable {
   private visibleModels = MAX_VISIBLE_MODELS;
   private filtered: CatalogModel[] = [];
   private selectedIndex = 0;
-  /** Last selection whose activation finished; what settings actually hold. */
-  private committedModelId: string | undefined;
-  private mode: CatalogModelPickerMode = "models";
-  private readonly postActivation: CatalogModelPostActivation;
-  /** Latest selection still activating; a newer selection supersedes it. */
-  private target: { model: CatalogModel; controller: AbortController } | undefined;
-  /** Exit requested while a save was in flight; fires when the save lands. */
-  private pendingExit: { result: CatalogModelPickerResult | undefined } | undefined;
-  private downloadBytes = 0;
-  private downloadTotal = 0;
-  private downloadSamples: { t: number; bytes: number }[] = [];
-  private downloadSpinner: Loader | undefined;
-  private feedback: { type: "success" | "error" | "muted"; text: string } | undefined;
-  private selectedDuringSession = false;
+  private downloadPanel: DownloadPanel | undefined;
   private disposed = false;
   private _focused = false;
 
@@ -419,19 +424,21 @@ export class CatalogModelPicker extends Container implements Focusable {
     options: CatalogModelPickerOptions = {},
   ) {
     super();
-    this.committedModelId = currentModelId;
-    this.postActivation = options.postActivation ?? "stay";
-    this.selectedDuringSession = options.activatedInFlow ?? false;
-    for (const model of CATALOG_MODELS) {
-      const cached = findCachedCatalogModel(model);
-      if (cached) this.cachedById.set(model.id, cached);
-    }
+    this.selection = new ModelSelectionController<CatalogModelPickerResult | undefined>((...args) => this.onActivate(...args), {
+      models: CATALOG_MODELS,
+      currentModelId,
+      activatedInFlow: options.activatedInFlow,
+      advance: options.postActivation === "advance",
+      completion: { type: "complete" },
+      onChange: () => this.refresh(),
+      onExit: (result) => { this.stopSpinner(); this.done(result); },
+    });
     this.models = rankCatalogModels(
       CATALOG_MODELS,
       preferredLanguages,
       (model) => this.cachedById.has(model.id),
     );
-    this.languageColumns = [...new Set(preferredLanguages.map(canonicalLanguage))];
+    this.languageColumns = [...new Set(preferredLanguages.map(languageIdentity))];
     const currentIndex = this.models.findIndex((model) => model.id === currentModelId);
     if (currentIndex > 0) {
       const [current] = this.models.splice(currentIndex, 1);
@@ -472,7 +479,7 @@ export class CatalogModelPicker extends Container implements Focusable {
   // The ● follows the in-flight selection the moment Enter lands; if that
   // activation fails it falls back to the committed model on its own.
   private displayedModelId(): string | undefined {
-    return this.target?.model.id ?? this.committedModelId;
+    return this.selection.displayedModelId;
   }
 
   // Column widths depend on the terminal: relay out when the width changes so
@@ -511,7 +518,9 @@ export class CatalogModelPicker extends Container implements Focusable {
   }
 
   private refresh(): void {
+    if (this.disposed) return;
     this.body.clear();
+    if (!this.selection.download) this.stopSpinner();
     const preferredAction = this.selectedDuringSession
       ? ""
       : ` · ${keyHint("tui.input.tab", "change")}`;
@@ -523,44 +532,10 @@ export class CatalogModelPicker extends Container implements Focusable {
     this.preferredLine.setText(`${this.theme.fg("muted", languagesText)}${preferredAction}`);
     this.search.focused = this._focused && this.mode === "models";
 
-    if (this.mode === "downloading") {
-      const model = this.target!.model;
-      this.body.addChild(new Spacer(1));
-      this.body.addChild(
-        new Text(
-          this.theme.fg("accent", this.theme.bold(`Downloading ${model.name}`)),
-          TEXT_PADDING,
-          0,
-        ),
-      );
-      // The spinner keeps animating even when the connection stalls, so a
-      // stuck download never reads as a frozen UI.
-      if (this.downloadSpinner) this.body.addChild(this.downloadSpinner);
-      const ratio =
-        this.downloadTotal > 0
-          ? Math.min(1, this.downloadBytes / this.downloadTotal)
-          : 0;
-      const filled = Math.round(ratio * DOWNLOAD_BAR_WIDTH);
-      const bar = `${this.theme.fg("accent", "█".repeat(filled))}${this.theme.fg("dim", "─".repeat(DOWNLOAD_BAR_WIDTH - filled))}`;
-      const percent =
-        this.downloadTotal > 0 ? ` ${Math.floor(ratio * 100)}%` : "";
-      this.body.addChild(
-        new Text(`${bar}${this.theme.fg("dim", percent)}`, TEXT_PADDING, 0),
-      );
-      this.body.addChild(
-        new Text(this.theme.fg("muted", this.downloadStats()), TEXT_PADDING, 0),
-      );
-      this.body.addChild(
-        new Text(
-          this.theme.fg("dim", "Models run locally — audio never leaves this machine."),
-          TEXT_PADDING,
-          0,
-        ),
-      );
-      this.body.addChild(new Spacer(1));
-      this.body.addChild(
-        new Text(keyHint("tui.select.cancel", "stop (keeps progress)"), TEXT_PADDING, 0),
-      );
+    if (this.selection.download) {
+      this.downloadPanel ??= new DownloadPanel(this.tui, this.theme, this.selection.download);
+      this.downloadPanel.update(this.selection.download, this.downloadStats());
+      this.body.addChild(this.downloadPanel);
       this.tui.requestRender();
       return;
     }
@@ -674,183 +649,38 @@ export class CatalogModelPicker extends Container implements Focusable {
     this.tui.requestRender();
   }
 
-  private downloadSpeed(): number | undefined {
-    const now = Date.now();
-    this.downloadSamples = this.downloadSamples.filter(
-      (sample) => now - sample.t <= SPEED_WINDOW_MS,
-    );
-    if (this.downloadSamples.length < 2) return undefined;
-    const first = this.downloadSamples[0]!;
-    const last = this.downloadSamples[this.downloadSamples.length - 1]!;
-    const elapsed = last.t - first.t;
-    if (elapsed < 500) return undefined;
-    return ((last.bytes - first.bytes) / elapsed) * 1000;
-  }
-
   private downloadStats(): string {
-    if (this.downloadTotal === 0) return "Preparing download…";
-    const parts = [
-      `${formatBinarySize(this.downloadBytes)} / ${formatBinarySize(this.downloadTotal)}`,
-    ];
-    const speed = this.downloadSpeed();
+    const { downloaded, total } = this.selection.download!;
+    if (total === 0) return "Preparing download…";
+    const parts = [`${formatBinarySize(downloaded)} / ${formatBinarySize(total)}`];
+    const speed = this.selection.downloadSpeed;
     if (speed !== undefined && speed > 0) {
       parts.push(`${formatBinarySize(speed)}/s`);
-      const remaining = (this.downloadTotal - this.downloadBytes) / speed;
+      const remaining = (total - downloaded) / speed;
       if (remaining > 1) parts.push(formatEta(remaining));
     }
     return parts.join(" · ");
   }
 
   private stopSpinner(): void {
-    this.downloadSpinner?.stop();
-    this.downloadSpinner = undefined;
-  }
-
-  // Exit keys wait for an in-flight save (milliseconds): success closes as
-  // requested, failure keeps the picker open so the error stays visible.
-  private requestExit(result: CatalogModelPickerResult | undefined): void {
-    if (this.target) {
-      this.pendingExit = { result };
-      return;
-    }
-    this.done(result);
-  }
-
-  private applyPostActivation(model: CatalogModel, wasCached: boolean): void {
-    if (this.postActivation === "advance") {
-      this.done({ type: "complete" });
-      return;
-    }
-    this.mode = "models";
-    this.feedback = wasCached
-      ? undefined
-      : { type: "success", text: `✓ Downloaded and selected ${model.name}` };
-    this.refresh();
-  }
-
-  private startActivation(model: CatalogModel): void {
-    const cached = this.cachedById.get(model.id);
-    // A committed model needs no further activation. Apply this host's policy:
-    // settings stay in the picker, while onboarding advances immediately.
-    if (
-      model.id === this.displayedModelId() &&
-      cached &&
-      (this.selectedDuringSession || this.postActivation === "stay")
-    ) {
-      this.selectedDuringSession = true;
-      this.applyPostActivation(model, true);
-      return;
-    }
-
-    // The newest selection always wins: an earlier activation still in flight
-    // is superseded, never a reason to ignore input. The caller queues commits
-    // in selection order, so settings on disk converge to this choice.
-    this.target?.controller.abort();
-    const controller = new AbortController();
-    const activation = { model, controller };
-    this.target = activation;
-    this.feedback = undefined;
-    if (!cached) {
-      this.mode = "downloading";
-      this.downloadBytes = 0;
-      this.downloadTotal = 0;
-      this.downloadSamples = [];
-      this.stopSpinner();
-      this.downloadSpinner = new Loader(
-        this.tui,
-        (text) => this.theme.fg("accent", text),
-        (text) => this.theme.fg("muted", text),
-        "Connecting to Hugging Face…",
-      );
-    }
-    this.refresh();
-
-    void this.onActivate(model, {
-      cached,
-      signal: controller.signal,
-      onProgress: ({ downloaded, total }) => {
-        if (this.disposed || controller.signal.aborted || this.target !== activation) return;
-        const firstReport = this.downloadTotal === 0 && total > 0;
-        this.downloadBytes = downloaded;
-        this.downloadTotal = total;
-        this.downloadSamples.push({ t: Date.now(), bytes: downloaded });
-        if (this.downloadSamples.length > 64) this.downloadSamples.shift();
-        if (firstReport) {
-          this.downloadSpinner?.setMessage(
-            downloaded > 0
-              ? "Resuming download from Hugging Face…"
-              : "Downloading from Hugging Face…",
-          );
-        }
-        this.refresh();
-      },
-    }).then(
-      ({ path }) => {
-        // Handlers run in commit order, so even a superseded success moves
-        // committedModelId to what the settings file held at that moment.
-        this.cachedById.set(model.id, { path });
-        this.committedModelId = model.id;
-        this.selectedDuringSession = true;
-        if (this.target === activation) {
-          this.target = undefined;
-          this.stopSpinner();
-          const exit = this.pendingExit;
-          if (exit) {
-            this.pendingExit = undefined;
-            this.done(exit.result);
-            return;
-          }
-          if (!this.disposed) this.applyPostActivation(model, Boolean(cached));
-          return;
-        }
-        if (!this.disposed) this.refresh();
-      },
-      (error: unknown) => {
-        // A failed download or select may have added or removed cache files.
-        const cachedAfterFailure = findCachedCatalogModel(model);
-        if (cachedAfterFailure) this.cachedById.set(model.id, cachedAfterFailure);
-        else this.cachedById.delete(model.id);
-        if (this.target === activation) {
-          this.target = undefined;
-          this.stopSpinner();
-          // A requested exit is cancelled so the failure stays visible.
-          this.pendingExit = undefined;
-          this.mode = "models";
-          this.feedback = controller.signal.aborted
-            ? {
-                type: "muted",
-                text: this.downloadBytes > 0
-                  ? "Download stopped — progress saved. Select the model again to resume."
-                  : "Download stopped.",
-              }
-            : {
-                type: "error",
-                text: `Could not select ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
-              };
-        }
-        if (!this.disposed) this.refresh();
-      },
-    );
+    this.downloadPanel?.dispose();
+    this.downloadPanel = undefined;
   }
 
   handleInput(data: string): void {
     // An exit is waiting on the final save; the picker is already closing.
-    if (this.pendingExit) return;
+    if (!this.selection.acceptsInput) return;
     if (this.mode === "downloading") {
       // Downloading is the one modal state: the progress panel is visible, so
       // ignoring everything except cancel cannot read as a dead keyboard.
       // Stopping is cheap: the partial file stays in the cache, and selecting
       // the model again resumes from where it left off.
-      if (this.keybindings.matches(data, "tui.select.cancel") && this.target) {
-        this.target.controller.abort();
-        this.downloadSpinner?.setMessage("Stopping…");
-        this.refresh();
-      }
+      if (this.keybindings.matches(data, "tui.select.cancel")) this.selection.cancelDownload();
       return;
     }
 
     if (this.keybindings.matches(data, "tui.input.tab")) {
-      if (!this.selectedDuringSession) this.requestExit({ type: "change-languages" });
+      if (!this.selectedDuringSession) this.selection.requestExit({ type: "change-languages" });
       return;
     }
     if (this.keybindings.matches(data, "tui.select.up")) {
@@ -872,7 +702,7 @@ export class CatalogModelPicker extends Container implements Focusable {
       if (!selected) return;
       // Enter on a model that is not cached starts its download immediately;
       // the detail pane already spells out the size, license, and source.
-      this.startActivation(selected);
+      this.selection.select(selected);
       return;
     }
     if (this.keybindings.matches(data, "tui.select.cancel")) {
@@ -881,7 +711,7 @@ export class CatalogModelPicker extends Container implements Focusable {
         this.selectedIndex = 0;
         this.refresh();
       } else {
-        this.requestExit(undefined);
+        this.selection.requestExit(undefined);
       }
       return;
     }
@@ -894,21 +724,19 @@ export class CatalogModelPicker extends Container implements Focusable {
   dispose(): void {
     this.disposed = true;
     this.stopSpinner();
-    // Closing cancels only a download; a queued settings commit still lands
-    // because the user's Enter already chose it.
-    if (this.mode === "downloading") this.target?.controller.abort();
+    this.selection.dispose();
   }
 }
 
 export function defaultSpokenLanguages(): string[] {
-  const locale = canonicalLanguage(Intl.DateTimeFormat().resolvedOptions().locale);
-  return getCatalogLanguages().includes(locale) ? [locale] : ["en"];
+  const locale = languageIdentity(Intl.DateTimeFormat().resolvedOptions().locale);
+  return PREFERRED_RECOMMENDATION_LANGUAGES.includes(locale) ? [locale] : ["en"];
 }
 
 export async function chooseLanguages(
   ctx: ExtensionContext,
   initial: readonly string[] = defaultSpokenLanguages(),
-  options: { cancelLabel?: string } = {},
+  options: { cancelLabel?: string; onboarding?: boolean } = {},
 ): Promise<LanguageSelection | undefined> {
   return ctx.ui.custom<LanguageSelection | undefined>((tui, theme, keybindings, done) =>
     new LanguagePicker(
@@ -918,6 +746,7 @@ export async function chooseLanguages(
       initial,
       options.cancelLabel ?? "close",
       done,
+      options.onboarding ?? false,
     ),
   );
 }
@@ -970,9 +799,9 @@ export function createTranscriptionLanguagePicker(
   preferredLanguages: readonly string[],
   done: (language: TranscriptionLanguage | undefined) => void,
 ): SingleSelectPicker<TranscriptionLanguage> {
-  const preferred = new Set(preferredLanguages.map(canonicalLanguage));
+  const preferred = new Set(preferredLanguages.map(languageIdentity));
   const isPreferred = (value: TranscriptionLanguage): boolean =>
-    value !== "auto" && preferred.has(canonicalLanguage(value));
+    value !== "auto" && preferred.has(languageIdentity(value));
   const languages: SingleSelectChoice<TranscriptionLanguage>[] = [
     ...new Set(model.languages),
   ]

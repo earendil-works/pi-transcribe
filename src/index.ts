@@ -1,7 +1,9 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { registerFileTranscriptionTool } from "./file-transcription.js";
 import type { PiTranscribeRuntime } from "./runtime.js";
-import { STATUS_WIDGET_KEY } from "./shortcut-core.js";
+import { displayShortcut, STATUS_WIDGET_KEY } from "./shortcut-core.js";
 import { readShortcutForRegistration } from "./startup-shortcut.js";
 
 // Pi awaits extension module evaluation before continuing startup. Keep this
@@ -24,6 +26,15 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     });
     return loading;
   }
+
+  pi.on("session_start", (_event, ctx) => {
+    if (!existsSync(join(getAgentDir(), "pi-transcribe.json"))) {
+      ctx.ui.notify(
+        `pi-transcribe installed · press ${displayShortcut(registeredShortcut)} or run /transcribe to set up`,
+        "info",
+      );
+    }
+  });
 
   const fileTranscription = registerFileTranscriptionTool(pi, {
     getSettings: async () => (await loadRuntime()).requireConfiguredSettingsForTool(),

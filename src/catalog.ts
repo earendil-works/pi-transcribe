@@ -1,4 +1,6 @@
 import { CATALOG_MODELS_GENERATED } from "./catalog.generated.js";
+import { canonicalLanguage, languageIdentity, resolveModelLanguage } from "./languages.js";
+export { canonicalLanguage, languageIdentity, resolveModelLanguage } from "./languages.js";
 
 export type CatalogModel = {
   readonly id: string;
@@ -29,10 +31,6 @@ export const CATALOG_MODELS: readonly CatalogModel[] = CATALOG_MODELS_GENERATED;
 
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
-export function canonicalLanguage(language: string): string {
-  return language.trim().toLowerCase().split("-", 1)[0] ?? language.trim().toLowerCase();
-}
-
 export function displayLanguage(language: string): string {
   // ASR catalogs conventionally use zh for Mandarin and list Cantonese as yue.
   // Make that spoken-language distinction explicit without losing the familiar
@@ -48,7 +46,7 @@ export function displayLanguage(language: string): string {
 export function getCatalogLanguages(): string[] {
   const languages = new Set<string>();
   for (const model of CATALOG_MODELS) {
-    for (const language of model.languages) languages.add(canonicalLanguage(language));
+    for (const language of model.languages) languages.add(languageIdentity(language));
   }
   return [...languages].sort((left, right) => {
     if (left === "en") return -1;
@@ -62,15 +60,14 @@ export function modelSupportsLanguage(model: CatalogModel, language: string): bo
 }
 
 export function modelMatchesLanguage(model: CatalogModel, language: string): boolean {
-  const wanted = canonicalLanguage(language);
-  return model.languages.some((supported) => canonicalLanguage(supported) === wanted);
+  return resolveModelLanguage(model, language) !== undefined;
 }
 
 function preferredLanguageMatchCount(
   model: CatalogModel,
   preferredLanguages: readonly string[],
 ): number {
-  return [...new Set(preferredLanguages.map(canonicalLanguage))].filter((language) =>
+  return [...new Set(preferredLanguages.map(languageIdentity))].filter((language) =>
     modelMatchesLanguage(model, language),
   ).length;
 }
@@ -110,7 +107,9 @@ export function catalogModelSearchText(model: CatalogModel): string {
     model.capabilities.translate ? "translation translate" : "",
     model.capabilities.languageDetection ? "automatic language detection" : "",
   ];
-  const languages = model.languages.flatMap((language) => [language, displayLanguage(language)]);
+  const languages = model.languages.flatMap((language) => [
+    language, displayLanguage(language), languageIdentity(language), displayLanguage(languageIdentity(language)),
+  ]);
   return [
     model.id,
     model.name,

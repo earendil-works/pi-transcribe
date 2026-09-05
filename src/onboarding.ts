@@ -6,6 +6,16 @@ import {
   type CatalogModelPostActivation,
 } from "./model-picker.js";
 import { createModelActivation } from "./model-activation.js";
+import { testMicrophonePermission } from "./audio.js";
+import { chooseMicrophone, microphonesEqual } from "./microphone-picker.js";
+import {
+  chooseRecommendedModel,
+  hasRecommendedAlternatives,
+} from "./recommendation-picker.js";
+import { CATALOG_MODELS } from "./catalog.js";
+import { recommendModels } from "./recommendations.js";
+import { createShortcutPicker } from "./shortcuts.js";
+import { tryVoice } from "./try-it.js";
 import {
   DEFAULT_MICROPHONE,
   settingsForModel,
@@ -109,6 +119,117 @@ export async function runModelSelection(
   }
 }
 
+async function chooseOnboardingShortcut(
+  ctx: ExtensionContext,
+  current: string,
+): Promise<string | undefined> {
+  return ctx.ui.custom<string | undefined>((tui, theme, keybindings, done) =>
+    createShortcutPicker(tui, theme, keybindings, current, done),
+  );
+}
+
+async function saveOnboardingSettings(
+  ctx: ExtensionContext,
+  settings: TranscribeSettings,
+): Promise<boolean> {
+  try {
+    await writeSettings(settings);
+    return true;
+  } catch (error) {
+    ctx.ui.notify(
+      `Could not save settings: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+    return false;
+  }
+}
+
+/** The Try it step, with its shortcut, microphone, and model adjustments looping back into it. */
+async function finishOnboarding(
+  ctx: ExtensionContext,
+  initial: TranscribeSettings,
+  changeModel: (current: TranscribeSettings) => Promise<TranscribeSettings | undefined>,
+): Promise<TranscribeSettings> {
+  let configured = initial;
+  while (true) {
+    const result = await tryVoice(ctx, configured);
+    if (result?.action === "model") {
+      configured = (await changeModel(configured)) ?? configured;
+      continue;
+    }
+    if (result?.action === "shortcut") {
+      const shortcut = await chooseOnboardingShortcut(ctx, configured.shortcut);
+      if (!shortcut || shortcut === configured.shortcut) continue;
+      const updated = { ...configured, shortcut };
+      if (await saveOnboardingSettings(ctx, updated)) configured = updated;
+      continue;
+    }
+    if (result?.action === "microphone") {
+      const permission = await testMicrophonePermission();
+      const microphone = await chooseMicrophone(ctx, configured.microphone, permission);
+      if (!microphone || microphonesEqual(microphone, configured.microphone)) continue;
+      const updated = { ...configured, microphone };
+      if (await saveOnboardingSettings(ctx, updated)) configured = updated;
+      continue;
+    }
+    return configured;
+  }
+}
+
+/** Change the model from Try it, including a round trip through languages. */
+export async function changeOnboardingModel(
+  ctx: ExtensionContext,
+  current: TranscribeSettings,
+): Promise<TranscribeSettings | undefined> {
+  let languages = [...current.preferredLanguages];
+  let picks = recommendModels(CATALOG_MODELS, languages);
+  let pane: "recommended" | "browse" = hasRecommendedAlternatives(picks)
+    ? "recommended"
+    : "browse";
+  let chosen: TranscribeSettings | undefined;
+  const activation = createModelActivation({
+    buildSettings: (model, path) =>
+      settingsForModel(model.id, path, {
+        shortcut: current.shortcut,
+        preferredLanguages: languages,
+        microphone: current.microphone,
+        chineseOutput: current.chineseOutput,
+      }),
+    onCommitted: (settings) => {
+      chosen = settings;
+    },
+  });
+
+  while (true) {
+    const result = pane === "recommended"
+      ? await chooseRecommendedModel(ctx, languages, picks, activation.activate, {
+          expanded: true,
+        })
+      : await chooseCatalogModel(ctx, languages, chosen?.model.id ?? current.model.id, {
+          postActivation: "advance",
+          onActivate: activation.activate,
+        });
+    await activation.waitForCommits();
+    if (!result || result.type === "complete" || result.type === "back") return chosen;
+    if (result.type === "other-models") {
+      pane = "browse";
+      continue;
+    }
+
+    const changed = await chooseLanguages(ctx, languages, {
+      cancelLabel: "back",
+      onboarding: true,
+    });
+    if (!changed?.confirmed) continue;
+    // Language edits remain a draft until a model is selected. Esc back to
+    // Try it must not silently alter the settings it is about to test.
+    languages = changed.languages;
+    picks = recommendModels(CATALOG_MODELS, languages);
+    // Even a single pick deserves its recommendation after languages change.
+    pane = "recommended";
+  }
+}
+
 export async function runOnboarding(
   ctx: ExtensionContext,
   shortcut = DEFAULT_SHORTCUT,
@@ -116,22 +237,58 @@ export async function runOnboarding(
   if (!requireTui(ctx)) return undefined;
 
   let languages = defaultSpokenLanguages();
+  // Navigation cannot undo a completed settings commit. Keep it across a
+  // return to languages, even if the user then exits without another choice.
+  let configured: TranscribeSettings | undefined;
   while (true) {
-    const chosen = await chooseLanguages(ctx, languages, { cancelLabel: "skip for now" });
-    // Esc exits onboarding: there are no settings yet for a closed picker's
-    // selection to be kept in, so only Continue advances.
-    if (!chosen?.confirmed) return undefined;
+    const chosen = await chooseLanguages(ctx, languages, {
+      cancelLabel: "exit",
+      onboarding: true,
+    });
+    if (!chosen?.confirmed) return configured;
     languages = chosen.languages;
-    const configured = await runModelSelection(ctx, {
-      shortcut,
-      preferredLanguages: languages,
-      postActivation: "advance",
-      onPreferredLanguagesChange: async (changed) => {
-        languages = changed;
+    // The picks are judged on the benchmark rig; the Try it step measures
+    // the real wait on this machine.
+    const picks = recommendModels(CATALOG_MODELS, languages);
+    const { activate, waitForCommits } = createModelActivation({
+      buildSettings: (model, path) =>
+        settingsForModel(model.id, path, {
+          shortcut,
+          preferredLanguages: languages,
+        }),
+      onCommitted: (settings) => {
+        configured = settings;
       },
     });
-    if (configured) return configured;
-    // Cancelling the model picker returns to the language step; only
-    // cancelling the language step exits onboarding.
+
+    let changeLanguages = false;
+    while (!changeLanguages) {
+      const recommendation = await chooseRecommendedModel(
+        ctx,
+        languages,
+        picks,
+        activate,
+      );
+      await waitForCommits();
+      if (!recommendation) return configured;
+      if (recommendation.type === "complete" && configured) {
+        return finishOnboarding(ctx, configured, (current) => changeOnboardingModel(ctx, current));
+      }
+      if (recommendation.type === "change-languages" || recommendation.type === "back") {
+        changeLanguages = true;
+        continue;
+      }
+
+      const selection = await chooseCatalogModel(ctx, languages, undefined, {
+        postActivation: "advance",
+        onActivate: activate,
+      });
+      await waitForCommits();
+      if (selection?.type === "complete" && configured) {
+        return finishOnboarding(ctx, configured, (current) => changeOnboardingModel(ctx, current));
+      }
+      if (selection?.type === "change-languages") changeLanguages = true;
+      // Esc from the complete selector returns to the recommendation pane.
+    }
   }
 }

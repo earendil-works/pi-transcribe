@@ -2,8 +2,11 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CAPTURE_SAMPLE_RATE } from "./audio-constants.js";
 import { STATUS_WIDGET_KEY } from "./shortcut-core.js";
 
+type UiTheme = ExtensionContext["ui"]["theme"];
+
 const WIDGET_KEY = STATUS_WIDGET_KEY;
-const UPDATE_MS = 50;
+/** Repaint interval shared by every surface that draws the meter. */
+export const METER_UPDATE_MS = 50;
 const LEVEL_GAIN = 36;
 const DECAY = 0.65;
 const BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
@@ -96,7 +99,7 @@ function blockForLevel(level: number): string {
   return BLOCKS[index] ?? "▁";
 }
 
-function formatElapsed(ms: number): string {
+export function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -119,37 +122,21 @@ export function clearTranscribeWidget(ctx: ExtensionContext): void {
   ctx.ui.setWidget(WIDGET_KEY, undefined);
 }
 
-/** Left-to-right FFT meter shown above the editor while recording. */
-export class RecordingMeter {
-  private readonly bands = Array.from({ length: BAND_EDGES_HZ.length - 1 }, () => 0);
+export type MeterModelState = "loading" | "ready" | "failed";
+
+/** Peak-hold band levels computed from capture frames. */
+export class SpectrumAnalyzer {
+  readonly bands: number[] = Array.from({ length: BAND_EDGES_HZ.length - 1 }, () => 0);
   private re: Float64Array | undefined;
   private im: Float64Array | undefined;
-  private startedAt = 0;
-  private nextPaintAt = 0;
-  private lastLine: string | undefined;
-  private ctx: ExtensionContext | undefined;
-  private modelState: "loading" | "ready" | "failed" = "loading";
 
-  start(ctx: ExtensionContext): void {
-    if (!ctx.hasUI) return;
-    this.ctx = ctx;
-    this.startedAt = Date.now();
+  reset(): void {
     this.bands.fill(0);
     this.re = undefined;
     this.im = undefined;
-    this.nextPaintAt = 0;
-    this.lastLine = undefined;
-    this.modelState = "loading";
-    this.paint();
-  }
-
-  setModelState(state: "loading" | "ready" | "failed"): void {
-    this.modelState = state;
-    this.paint();
   }
 
   push(frame: Int16Array): void {
-    if (!this.ctx) return;
     const n = floorPowerOfTwo(frame.length);
     if (!this.re || !this.im || this.re.length !== n) {
       this.re = new Float64Array(n);
@@ -159,9 +146,64 @@ export class RecordingMeter {
     for (let index = 0; index < this.bands.length; index += 1) {
       this.bands[index] = Math.max(energies[index] ?? 0, (this.bands[index] ?? 0) * DECAY);
     }
+  }
+}
+
+/**
+ * The one-line recording meter: band blocks, elapsed time, model state, and
+ * an optional trailing hint. Every surface that shows a recording renders
+ * through here so the editor widget and the setup pane look the same.
+ */
+export function renderMeterLine(
+  theme: UiTheme,
+  options: {
+    bands: readonly number[];
+    elapsedMs: number;
+    modelState: MeterModelState;
+    hint?: string;
+  },
+): string {
+  const parts = [
+    theme.fg("accent", options.bands.map(blockForLevel).join("")),
+    theme.fg("muted", formatElapsed(options.elapsedMs)),
+  ];
+  if (options.modelState === "loading") parts.push(theme.fg("dim", "loading model"));
+  if (options.modelState === "failed") parts.push(theme.fg("warning", "model load failed"));
+  if (options.hint) parts.push(theme.fg("dim", options.hint));
+  return parts.join("  ");
+}
+
+/** Left-to-right FFT meter shown above the editor while recording. */
+export class RecordingMeter {
+  private readonly analyzer = new SpectrumAnalyzer();
+  private startedAt = 0;
+  private nextPaintAt = 0;
+  private lastLine: string | undefined;
+  private ctx: ExtensionContext | undefined;
+  private modelState: MeterModelState = "loading";
+
+  start(ctx: ExtensionContext): void {
+    if (!ctx.hasUI) return;
+    this.ctx = ctx;
+    this.startedAt = Date.now();
+    this.analyzer.reset();
+    this.nextPaintAt = 0;
+    this.lastLine = undefined;
+    this.modelState = "loading";
+    this.paint();
+  }
+
+  setModelState(state: MeterModelState): void {
+    this.modelState = state;
+    this.paint();
+  }
+
+  push(frame: Int16Array): void {
+    if (!this.ctx) return;
+    this.analyzer.push(frame);
     const now = Date.now();
     if (now < this.nextPaintAt) return;
-    this.nextPaintAt = now + UPDATE_MS;
+    this.nextPaintAt = now + METER_UPDATE_MS;
     this.paint();
   }
 
@@ -177,15 +219,12 @@ export class RecordingMeter {
     const ctx = this.ctx;
     if (!ctx) return;
 
-    const theme = ctx.ui.theme;
-    const parts = [
-      theme.fg("accent", this.bands.map(blockForLevel).join("")),
-      theme.fg("muted", formatElapsed(Date.now() - this.startedAt)),
-    ];
-    if (this.modelState === "loading") parts.push(theme.fg("dim", "loading model"));
-    if (this.modelState === "failed") parts.push(theme.fg("warning", "model load failed"));
-    parts.push(theme.fg("dim", "esc to cancel"));
-    const line = parts.join("  ");
+    const line = renderMeterLine(ctx.ui.theme, {
+      bands: this.analyzer.bands,
+      elapsedMs: Date.now() - this.startedAt,
+      modelState: this.modelState,
+      hint: "esc to cancel",
+    });
     if (line === this.lastLine) return;
     this.lastLine = line;
     ctx.ui.setWidget(WIDGET_KEY, [line]);

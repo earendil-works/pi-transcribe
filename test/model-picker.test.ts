@@ -200,6 +200,14 @@ test("language picker shows tab-to-continue inline on the action row", () => {
   assert.doesNotMatch(actionLine, /move|select|skip for now/);
 });
 
+test("opening preferred languages and pressing Escape preserves saved unbenchmarked languages", () => {
+  let result: { languages: string[]; confirmed: boolean } | undefined;
+  const picker = new LanguagePicker(testTui(), testTheme(), keybindings(), ["en", "af"], "back", (value) => { result = value; });
+  assert.match(stripAnsi(picker.render(80).join("\n")), /Afrikaans/);
+  picker.handleInput(ESC);
+  assert.deepEqual(result, { languages: ["en", "af"], confirmed: false });
+});
+
 test("transcription language picker keeps auto detect and language codes", () => {
   const model = CATALOG_MODELS.find(
     (candidate) => candidate.capabilities.languageDetection && candidate.languages.length > 5,
