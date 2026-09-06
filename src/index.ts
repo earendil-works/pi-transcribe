@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
 import { registerFileTranscriptionTool } from "./file-transcription.js";
 import type { PiTranscribeRuntime } from "./runtime.js";
 import { STATUS_WIDGET_KEY } from "./shortcut-core.js";
@@ -33,7 +36,7 @@ export default function piTranscribe(pi: ExtensionAPI): void {
   pi.registerShortcut(
     registeredShortcut as Parameters<ExtensionAPI["registerShortcut"]>[0],
     {
-      description: "Toggle microphone transcription",
+      description: "Toggle Pi Voice recording",
       handler: async (ctx) => {
         // The first press pays deferred module loading before the runtime can
         // show anything; paint feedback synchronously. Later presses reach the
@@ -53,14 +56,25 @@ export default function piTranscribe(pi: ExtensionAPI): void {
     },
   );
 
+  const showVoiceSettings = async (
+    _args: string,
+    ctx: ExtensionCommandContext,
+  ): Promise<void> => (await loadRuntime()).showSettings(ctx);
+
+  pi.registerCommand("voice", {
+    description: "Set up or configure Pi Voice",
+    handler: showVoiceSettings,
+  });
+
+  // Compatibility alias while the user-facing product moves to Pi Voice.
   pi.registerCommand("transcribe", {
-    description: "Open pi-transcribe settings",
-    handler: async (_args, ctx) => (await loadRuntime()).showSettings(ctx),
+    description: "Open Pi Voice settings",
+    handler: showVoiceSettings,
   });
 
   if (process.env.PI_TRANSCRIBE_DEBUG === "1") {
-    pi.registerCommand("transcribe-onboarding", {
-      description: "Replay pi-transcribe onboarding (debug)",
+    pi.registerCommand("voice-onboarding", {
+      description: "Replay Pi Voice onboarding (debug)",
       handler: async (_args, ctx) => (await loadRuntime()).replayOnboarding(ctx),
     });
   }

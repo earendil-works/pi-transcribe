@@ -25,7 +25,7 @@ function validateLanguage(
 ): void {
   if (language && !capabilities.languages.includes(language)) {
     throw new Error(
-      `Configured language ${language} is not supported by this model. Open /transcribe and choose another language.`,
+      `Configured language ${language} is not supported by this model. Open /voice and choose another language.`,
     );
   }
 }

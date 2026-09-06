@@ -219,7 +219,7 @@ async function showSettingsHome(
       choices,
       undefined,
       {
-        title: "pi-transcribe settings",
+        title: "Pi Voice settings",
         cancelLabel: "close",
         renderLabel: (choice, active, width) => {
           const row = rows.get(choice.value);
@@ -377,7 +377,7 @@ export async function showSettingsMenu(
   registeredShortcut: string,
 ): Promise<boolean> {
   if (ctx.mode !== "tui") {
-    ctx.ui.notify("pi-transcribe settings require the interactive TUI", "error");
+    ctx.ui.notify("Pi Voice settings require the interactive TUI", "error");
     return false;
   }
 
