@@ -327,15 +327,6 @@
       },
       "performance": {"accelerated": 13.2, "cpu": 6.65}
     },
-    "canary-1b": {
-      "accuracy": {
-        "de": {"error": 6.45, "ciLower": 5.83},
-        "en": {"error": 4.44, "ciLower": 4},
-        "es": {"error": 6.06, "ciLower": 5.52},
-        "fr": {"error": 7.44, "ciLower": 6.79}
-      },
-      "performance": {"accelerated": 8.9, "cpu": 5.55}
-    },
     "canary-qwen-2.5b": {
       "accuracy": {
         "en": {"error": 3.58, "ciLower": 3.19}
@@ -380,27 +371,6 @@
       },
       "performance": {"accelerated": 22, "cpu": 8}
     },
-    "granite-speech-4.1-2b-nar": {
-      "accuracy": {
-        "de": {"error": 6.07, "ciLower": 5.61},
-        "en": {"error": 5.33, "ciLower": 4.6},
-        "es": {"error": 4.08, "ciLower": 3.71},
-        "fr": {"error": 6.76, "ciLower": 6.02},
-        "pt": {"error": 5.57, "ciLower": 5.12}
-      },
-      "performance": {}
-    },
-    "granite-4.0-1b-speech": {
-      "accuracy": {
-        "de": {"error": 7.29, "ciLower": 6.71},
-        "en": {"error": 4.66, "ciLower": 4.2},
-        "es": {"error": 5.91, "ciLower": 5.41},
-        "fr": {"error": 8.44, "ciLower": 7.72},
-        "ja": {"error": 6.44, "ciLower": 5.86},
-        "pt": {"error": 9.6, "ciLower": 8.89}
-      },
-      "performance": {}
-    },
     "granite-speech-4.1-2b": {
       "accuracy": {
         "de": {"error": 6.25, "ciLower": 5.66},
@@ -410,23 +380,13 @@
         "ja": {"error": 6.3, "ciLower": 5.75},
         "pt": {"error": 9.8, "ciLower": 9.08}
       },
-      "performance": {}
-    },
-    "granite-speech-4.1-2b-plus": {
-      "accuracy": {
-        "de": {"error": 8.06, "ciLower": 7.46},
-        "en": {"error": 4.46, "ciLower": 3.97},
-        "es": {"error": 6.53, "ciLower": 5.96},
-        "fr": {"error": 8.82, "ciLower": 8.11},
-        "pt": {"error": 10.61, "ciLower": 9.59}
-      },
-      "performance": {}
+      "performance": {"accelerated": 2.8, "cpu": 1.45}
     },
     "medasr": {
       "accuracy": {
         "en": {"error": 37.48, "ciLower": 35.83}
       },
-      "performance": {}
+      "performance": {"accelerated": 71, "cpu": 19.5}
     },
     "moonshine-streaming-tiny": {
       "accuracy": {
@@ -439,12 +399,6 @@
         "en": {"error": 14.13, "ciLower": 12.44}
       },
       "performance": {"accelerated": 56, "cpu": 45.5}
-    },
-    "moonshine-tiny-ar": {
-      "accuracy": {
-        "ar": {"error": 26.7, "ciLower": 24.08}
-      },
-      "performance": {}
     },
     "moonshine-tiny-ja": {
       "accuracy": {
@@ -476,18 +430,6 @@
       },
       "performance": {}
     },
-    "moonshine-base": {
-      "accuracy": {
-        "en": {"error": 12.25, "ciLower": 10.67}
-      },
-      "performance": {"accelerated": 34.5, "cpu": 22}
-    },
-    "moonshine-base-ar": {
-      "accuracy": {
-        "ar": {"error": 24.62, "ciLower": 21.58}
-      },
-      "performance": {}
-    },
     "moonshine-base-ja": {
       "accuracy": {
         "ja": {"error": 11.11, "ciLower": 10.05}
@@ -511,24 +453,6 @@
         "vi": {"error": 9.96, "ciLower": 9.25}
       },
       "performance": {}
-    },
-    "moonshine-base-zh": {
-      "accuracy": {
-        "zh": {"error": 17.79, "ciLower": 15.81}
-      },
-      "performance": {}
-    },
-    "moonshine-streaming-small": {
-      "accuracy": {
-        "en": {"error": 8.55, "ciLower": 7.84}
-      },
-      "performance": {"accelerated": 23.5, "cpu": 12}
-    },
-    "moonshine-streaming-medium": {
-      "accuracy": {
-        "en": {"error": 7.87, "ciLower": 6.97}
-      },
-      "performance": {"accelerated": 14, "cpu": 7.5}
     },
     "nemotron-speech-streaming-en-0.6b": {
       "accuracy": {
@@ -559,30 +483,6 @@
         "en": {"error": 4.57, "ciLower": 4.13}
       },
       "performance": {"accelerated": 14.5, "cpu": 8}
-    },
-    "parakeet-ctc-1.1b": {
-      "accuracy": {
-        "en": {"error": 5.61, "ciLower": 5.04}
-      },
-      "performance": {"accelerated": 14, "cpu": 6}
-    },
-    "parakeet-tdt-1.1b": {
-      "accuracy": {
-        "en": {"error": 4.24, "ciLower": 3.78}
-      },
-      "performance": {"accelerated": 11.5, "cpu": 5.5}
-    },
-    "parakeet-rnnt-1.1b": {
-      "accuracy": {
-        "en": {"error": 4.45, "ciLower": 3.99}
-      },
-      "performance": {"accelerated": 11, "cpu": 5.5}
-    },
-    "parakeet-tdt_ctc-1.1b": {
-      "accuracy": {
-        "en": {"error": 4.68, "ciLower": 4.22}
-      },
-      "performance": {"accelerated": 11, "cpu": 5.5}
     },
     "Qwen3-ASR-1.7B": {
       "accuracy": {
@@ -641,19 +541,6 @@
         "pt": {"error": 3.84, "ciLower": 3.44}
       },
       "performance": {"accelerated": 1.25, "cpu": 0.5}
-    },
-    "Voxtral-Small-24B-2507": {
-      "accuracy": {
-        "de": {"error": 3.29, "ciLower": 2.93},
-        "en": {"error": 3.55, "ciLower": 3.07},
-        "es": {"error": 2.86, "ciLower": 2.47},
-        "fr": {"error": 3.86, "ciLower": 3.39},
-        "hi": {"error": 7.4, "ciLower": 6.65},
-        "it": {"error": 2.69, "ciLower": 2.19},
-        "nl": {"error": 5.12, "ciLower": 4.38},
-        "pt": {"error": 3.74, "ciLower": 3.25}
-      },
-      "performance": {}
     },
     "whisper-tiny": {
       "accuracy": {
@@ -839,12 +726,6 @@
       },
       "performance": {"accelerated": 36.25, "cpu": 12.75}
     },
-    "whisper-small.en": {
-      "accuracy": {
-        "en": {"error": 6.14, "ciLower": 5.47}
-      },
-      "performance": {"accelerated": 12.8, "cpu": 3.6}
-    },
     "whisper-small": {
       "accuracy": {
         "af": {"error": 62.2, "ciLower": 59.75},
@@ -930,12 +811,6 @@
         "zh": {"error": 23.06, "ciLower": 21.79}
       },
       "performance": {"accelerated": 12.15, "cpu": 3.4}
-    },
-    "whisper-medium.en": {
-      "accuracy": {
-        "en": {"error": 4.88, "ciLower": 4.32}
-      },
-      "performance": {"accelerated": 4.6, "cpu": 1.15}
     },
     "whisper-large-v3-turbo": {
       "accuracy": {
@@ -1030,56 +905,6 @@
         "zh": {"error": 8.1, "ciLower": 7.28}
       },
       "performance": {"accelerated": 2.15, "cpu": 0.55}
-    },
-    "whisper-large": {
-      "accuracy": {
-        "af": {"error": 44.92, "ciLower": 42.61},
-        "am": {"error": 133.86, "ciLower": 128.35},
-        "ar": {"error": 19.47, "ciLower": 18.01},
-        "as": {"error": 105.09, "ciLower": 104.38},
-        "az": {"error": 30.38, "ciLower": 29.46},
-        "be": {"error": 58.26, "ciLower": 57.26},
-        "bg": {"error": 19.89, "ciLower": 18.96},
-        "bn": {"error": 105.08, "ciLower": 104.55},
-        "bs": {"error": 22.2, "ciLower": 21.32},
-        "ca": {"error": 7.01, "ciLower": 6.46},
-        "cs": {"error": 18.77, "ciLower": 17.92},
-        "cy": {"error": 36.33, "ciLower": 35.35},
-        "da": {"error": 17.82, "ciLower": 16.95},
-        "de": {"error": 5.04, "ciLower": 4.63},
-        "el": {"error": 18.79, "ciLower": 17.47},
-        "en": {"error": 4.46, "ciLower": 3.9},
-        "es": {"error": 3.55, "ciLower": 3.18},
-        "et": {"error": 27.31, "ciLower": 26.31},
-        "fa": {"error": 37.88, "ciLower": 36.76},
-        "fi": {"error": 12.73, "ciLower": 12.01},
-        "fil": {"error": 15.44, "ciLower": 14.78},
-        "fr": {"error": 6.95, "ciLower": 6.39},
-        "gl": {"error": 20.1, "ciLower": 19.39},
-        "gu": {"error": 104.29, "ciLower": 103.91},
-        "ha": {"error": 90.12, "ciLower": 88.77},
-        "he": {"error": 30.18, "ciLower": 28.45},
-        "hi": {"error": 29.1, "ciLower": 27.16},
-        "hr": {"error": 18.32, "ciLower": 17.52},
-        "hu": {"error": 21.97, "ciLower": 21.06},
-        "hy": {"error": 54.73, "ciLower": 53.53},
-        "id": {"error": 8.93, "ciLower": 8.27},
-        "is": {"error": 49.76, "ciLower": 42.72},
-        "it": {"error": 3.67, "ciLower": 3.26},
-        "ja": {"error": 6.95, "ciLower": 6.39},
-        "ka": {"error": 119.65, "ciLower": 116.17},
-        "kk": {"error": 47.29, "ciLower": 46.19},
-        "km": {"error": 118.15, "ciLower": 114.41},
-        "kn": {"error": 74.18, "ciLower": 72.35},
-        "ko": {"error": 5.25, "ciLower": 4.26},
-        "lb": {"error": 91.22, "ciLower": 89.48},
-        "ln": {"error": 81.13, "ciLower": 78.91},
-        "lo": {"error": 102.35, "ciLower": 101.26},
-        "lt": {"error": 37.58, "ciLower": 36.63},
-        "lv": {"error": 30.18, "ciLower": 29.26},
-        "mk": {"error": 22.81, "ciLower": 21.91}
-      },
-      "performance": {"accelerated": 2.15, "cpu": 0.5}
     },
     "whisper-large-v2": {
       "accuracy": {
