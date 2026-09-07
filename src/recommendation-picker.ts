@@ -62,7 +62,8 @@ type Row =
  * Step two of onboarding. One model is recommended and Enter takes it; the
  * faster and more accurate alternatives stay folded behind a question line
  * until someone arrows down to it, so a recommendation never reads as a
- * comparison.
+ * comparison. Everywhere that fold is spent — unfolded, or absent because one
+ * model won every role — a row onto the full catalog replaces it.
  */
 export class RecommendedModelPicker extends Container implements Focusable {
   private readonly body = new Container();
@@ -131,10 +132,18 @@ export class RecommendedModelPicker extends Container implements Focusable {
       return [{ type: "browse" }];
     }
     const rows: Row[] = [{ type: "model", recommendation: this.best }];
+    // While the trade-offs stay folded that question is the only invitation to
+    // look further; a second "more models" row beside it would turn the
+    // recommendation into a comparison. Once it unfolds — or when one model
+    // carries every role and there is nothing to unfold — the full catalog
+    // takes its place, so the pane is never a dead end.
     if (this.expanded) {
       for (const recommendation of this.alternatives) rows.push({ type: "model", recommendation });
+      rows.push({ type: "browse" });
     } else if (this.alternatives.length > 0) {
       rows.push({ type: "alternatives" });
+    } else {
+      rows.push({ type: "browse" });
     }
     return rows;
   }
@@ -181,6 +190,36 @@ export class RecommendedModelPicker extends Container implements Focusable {
     return "More accurate, but may take longer.";
   }
 
+  /**
+   * Title, description, and confirm verb for the rows that are not models.
+   * Browsing means something different either side of a usable
+   * recommendation, so its copy follows the pick's status rather than the
+   * row alone.
+   */
+  private rowLabel(row: Exclude<Row, { type: "model" }>): {
+    title: string;
+    description: string;
+    action: string;
+  } {
+    if (row.type === "alternatives") {
+      return { title: "Other options", description: this.question(), action: "show alternatives" };
+    }
+    if (this.best.status === "unsupported" || this.best.status === "unbenchmarked") {
+      return {
+        title: "Browse models anyway",
+        description: this.best.status === "unsupported"
+          ? "Available models are unlikely to produce a usable transcript"
+          : "Inspect models whose language support has not been verified",
+        action: "browse models",
+      };
+    }
+    return {
+      title: "Show all models",
+      description: "Search the whole catalog and pick a model yourself",
+      action: "show all models",
+    };
+  }
+
   private addModelRow(recommendation: ModelRecommendation, active: boolean): void {
     const prefix = active ? this.theme.fg("accent", "→ ") : "  ";
     const nameText = padToWidth(recommendation.model.name, NAME_WIDTH);
@@ -196,6 +235,20 @@ export class RecommendedModelPicker extends Container implements Focusable {
       ? this.theme.fg("warning", `Experimental: this is the best option we found, but it may make frequent mistakes in ${displayLanguage(recommendation.worstLanguage)}.`)
       : this.theme.fg("muted", this.detail(recommendation));
     details.addChild(new Text(description, LIST_PADDING + 2, 0));
+    // A usable pick still spans most of an order of magnitude of error, so a
+    // model near the floor should not read exactly like one many times more
+    // accurate. Where the shortfall separates the picks it is a short tag on
+    // the rows that have it; where it covers all of them the heading carries
+    // it instead, so the same sentence never repeats down the pane.
+    if (recommendation.nearFloor && recommendation.worstLanguage && !this.sharedNearFloorLanguage()) {
+      details.addChild(
+        new Text(
+          this.theme.fg("warning", `Lower accuracy in ${displayLanguage(recommendation.worstLanguage)}.`),
+          LIST_PADDING + 2,
+          0,
+        ),
+      );
+    }
     if (this.languages.length > 1 && !recommendation.model.capabilities.languageDetection) {
       details.addChild(new Text(this.theme.fg("warning", "You will need to change the transcription language manually."), LIST_PADDING + 2, 0));
     }
@@ -229,24 +282,13 @@ export class RecommendedModelPicker extends Container implements Focusable {
       if (row.type !== "model") {
         // Shaped like a model row, title then description, so it reads as
         // a choice rather than a footnote.
-        const browse = row.type === "browse";
-        const title = padToWidth(browse ? "Browse models anyway" : "Other options", NAME_WIDTH);
+        const { title, description } = this.rowLabel(row);
+        const padded = padToWidth(title, NAME_WIDTH);
         this.body.addChild(
-          new Text(`${prefix}${active ? this.theme.fg("accent", title) : title}`, LIST_PADDING, 0),
+          new Text(`${prefix}${active ? this.theme.fg("accent", padded) : padded}`, LIST_PADDING, 0),
         );
         this.body.addChild(
-          new Text(
-            this.theme.fg(
-              "muted",
-              browse
-                ? this.best.status === "unsupported"
-                  ? "Available models are unlikely to produce a usable transcript"
-                  : "Inspect models whose language support has not been verified"
-                : this.question(),
-            ),
-            LIST_PADDING + 2,
-            0,
-          ),
+          new Text(this.theme.fg("muted", description), LIST_PADDING + 2, 0),
         );
         continue;
       }
@@ -261,7 +303,7 @@ export class RecommendedModelPicker extends Container implements Focusable {
     this.body.addChild(new Spacer(1));
     this.body.addChild(
       new Text(
-        `${keyHint("tui.select.confirm", this.confirmLabel())}  ${rawKeyHint("o", "other models")}  ${keyHint("tui.select.cancel", "back")}`,
+        `${keyHint("tui.select.confirm", this.confirmLabel())}  ${rawKeyHint("o", "all models")}  ${keyHint("tui.select.cancel", "back")}`,
         PANEL_PADDING,
         0,
       ),
@@ -277,16 +319,42 @@ export class RecommendedModelPicker extends Container implements Focusable {
     return `${title} for ${languageText}`;
   }
 
+  /**
+   * The weak language when no pick escapes the note band, which makes the
+   * shortfall a property of the language rather than of any one model. Judged
+   * over every pick rather than the visible rows, so unfolding the
+   * alternatives never changes the story the pane tells.
+   */
+  private sharedNearFloorLanguage(): string | undefined {
+    const picks = [this.best, ...this.alternatives];
+    const language = this.best.worstLanguage;
+    // Different models can be weakest in different languages. No catalog pick
+    // does today, but hoisting one model's weak language over a row it does
+    // not describe would state something false, so disagreement falls back to
+    // the per-row tags.
+    return language !== undefined &&
+      picks.every((pick) => pick.nearFloor && pick.worstLanguage === language)
+      ? language
+      : undefined;
+  }
+
   private notice(): string {
-    return this.best.status === "unsupported"
-      ? `Every measured model is at or above ${EXPERIMENTAL_MAX_ERROR_PERCENT}% benchmark error.`
-      : this.best.status === "unbenchmarked"
-        ? "Model cards claim support, but measured accuracy is unavailable." : "";
+    if (this.best.status === "unsupported") {
+      return `Every measured model is at or above ${EXPERIMENTAL_MAX_ERROR_PERCENT}% benchmark error.`;
+    }
+    if (this.best.status === "unbenchmarked") {
+      return "Model cards claim support, but measured accuracy is unavailable.";
+    }
+    const language = this.sharedNearFloorLanguage();
+    return language
+      ? `Every model here is less accurate in ${displayLanguage(language)}. Expect to correct transcripts more often.`
+      : "";
   }
 
   private confirmLabel(): string {
     const row = this.rows()[this.selectedIndex];
-    if (row?.type !== "model") return row?.type === "browse" ? "browse models" : "show alternatives";
+    if (!row) return "choose";
+    if (row.type !== "model") return this.rowLabel(row).action;
     const model = row.recommendation.model;
     return this.selection.cachedById.has(model.id) ? "choose" : `download ${formatBinarySize(model.size)}`;
   }
@@ -304,7 +372,7 @@ export class RecommendedModelPicker extends Container implements Focusable {
     }
     // Collapse whitespace and descriptions before hiding any choices. On tiny
     // terminals window the choices around the cursor, keeping the actions visible.
-    const footer = text(`${keyHint("tui.select.confirm", this.confirmLabel())}  ${keyHint("tui.select.cancel", "back")}\n${keyHint("tui.input.tab", "languages")}  ${rawKeyHint("o", "other models")}`)
+    const footer = text(`${keyHint("tui.select.confirm", this.confirmLabel())}  ${keyHint("tui.select.cancel", "back")}\n${keyHint("tui.input.tab", "languages")}  ${rawKeyHint("o", "all models")}`)
       .slice(0, Math.max(0, budget - 1));
     const header = [title, line(this.heading())].slice(0, Math.max(0, budget - footer.length - 1));
     const rows = this.rows();
@@ -313,7 +381,7 @@ export class RecommendedModelPicker extends Container implements Focusable {
     const choices = rows.slice(start, end).map((row, index) => {
       const label = row.type === "model"
         ? `${row.recommendation.model.name} · ${formatBinarySize(row.recommendation.model.size)}`
-        : row.type === "browse" ? "Browse models anyway" : "Other options";
+        : this.rowLabel(row).title;
       return line(index + start === this.selectedIndex ? this.theme.fg("accent", `→ ${label}`) : `  ${label}`);
     });
     const row = rows[this.selectedIndex];
@@ -321,7 +389,7 @@ export class RecommendedModelPicker extends Container implements Focusable {
     if (this.notice()) detail.addChild(new Text(this.theme.fg("warning", this.notice()), PANEL_PADDING, 0));
     if (row?.type === "model") {
       detail.addChild(this.modelDetails(row.recommendation));
-    } else if (row?.type === "alternatives") detail.addChild(new Text(this.question(), PANEL_PADDING, 0));
+    } else if (row) detail.addChild(new Text(this.rowLabel(row).description, PANEL_PADDING, 0));
     const feedback = this.selection.feedback;
     const details = [...(feedback ? text(this.theme.fg(feedback.type, feedback.text)) : []), ...detail.render(width)];
     return [...header, ...choices, ...details.slice(0, room - choices.length), ...footer];

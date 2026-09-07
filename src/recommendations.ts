@@ -33,6 +33,8 @@ export type ModelRecommendation = {
   worstError?: number;
   /** True when even the worst language is over the usability floor. */
   overFloor?: boolean;
+  /** Usable, but close enough to the floor that the pane says so. */
+  nearFloor?: boolean;
 };
 
 type AccuracyCell = {
@@ -59,7 +61,11 @@ type RecommendationModelData = {
  * `accurateMaxWaitSeconds`, else the most accurate usable model. When no
  * usable model exists, the closest model carries every role. It remains
  * experimental below `experimentalMaxErrorPercent`, or when its lower
- * confidence bound reaches that cutoff; otherwise it is unsupported.
+ * confidence bound reaches that cutoff; otherwise it is unsupported. A pick
+ * that is usable but reaches `noteMinErrorPercent` on some chosen language is
+ * still recommended, with the shortfall named rather than left to be
+ * discovered: the usable band spans most of an order of magnitude, so silence
+ * across all of it would say the same thing about very different models.
  */
 type Methodology = {
   dictationSeconds: number;
@@ -67,6 +73,7 @@ type Methodology = {
   waitWeight: number;
   overallMaxWaitSeconds: number;
   maxLanguageErrorPercent: number;
+  noteMinErrorPercent: number;
   experimentalMaxErrorPercent: number;
   fastCpuMaxWaitSeconds: number;
   accurateMaxWaitSeconds: number;
@@ -259,6 +266,9 @@ export function recommendModels(
         worstLanguage: candidate.worstLanguage,
         worstError: candidate.worstError,
         overFloor: candidate.worstError >= method.maxLanguageErrorPercent,
+        nearFloor:
+          candidate.worstError >= method.noteMinErrorPercent &&
+          candidate.worstError < method.maxLanguageErrorPercent,
       });
     }
   }

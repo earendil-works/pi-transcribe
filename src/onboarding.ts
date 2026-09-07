@@ -279,7 +279,7 @@ export async function runOnboarding(
         continue;
       }
 
-      const selection = await chooseCatalogModel(ctx, languages, undefined, {
+      const selection = await chooseCatalogModel(ctx, languages, configured?.model.id, {
         postActivation: "advance",
         onActivate: activate,
       });

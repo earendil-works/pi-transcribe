@@ -99,6 +99,7 @@ await writeFile(
       waitWeight: 0.5,
       overallMaxWaitSeconds: 5,
       maxLanguageErrorPercent: 20,
+      noteMinErrorPercent: 15,
       experimentalMaxErrorPercent: 30,
       fastCpuMaxWaitSeconds: 4,
       accurateMaxWaitSeconds: 10,
