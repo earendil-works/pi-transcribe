@@ -15,6 +15,7 @@
   "files": [
     "src",
     "index.ts",
+    "catalog/recommendations.json",
     "README.md",
     "LICENSE"
   ],
@@ -35,6 +36,7 @@
     "test": "npm run check && node scripts/run-tests.mjs",
     "prepublishOnly": "npm test",
     "catalog:generate": "node scripts/generate-catalog.mjs",
+    "recommendations:generate": "node scripts/generate-recommendations.mjs",
     "catalog:verify": "node scripts/catalog-metadata.mjs",
     "catalog:update-metadata": "node scripts/catalog-metadata.mjs --write"
   },

@@ -10,6 +10,7 @@ import {
   type Focusable,
   fuzzyFilter,
   Input,
+  Loader,
   Spacer,
   Text,
   truncateToWidth,
@@ -17,6 +18,8 @@ import {
   type KeybindingsManager,
   type TUI,
 } from "@earendil-works/pi-tui";
+import { formatBinarySize } from "./catalog.js";
+import type { DownloadState } from "./model-selection-controller.js";
 
 type UiTheme = ExtensionContext["ui"]["theme"];
 
@@ -25,6 +28,11 @@ export const LIST_PADDING = 1;
 
 export function panelBorder(theme: UiTheme): DynamicBorder {
   return new DynamicBorder((text: string) => theme.fg("border", text));
+}
+
+/** The rule Pi's editor draws above and below its text. */
+export function editorBorder(theme: UiTheme): DynamicBorder {
+  return new DynamicBorder((text: string) => theme.fg("borderMuted", text));
 }
 
 export type SingleSelectChoice<T extends string> = {
@@ -67,9 +75,67 @@ export function windowSizeForBudget(
   return Math.max(minimum, Math.min(maximum, budget));
 }
 
+/** Compute a list window while reserving the pane's non-list content. */
+export function paneListWindow(
+  tui: TUI,
+  renderedRows: number,
+  listRows: number,
+  detailRows: number,
+  reservedDetailRows: number,
+  maximum: number,
+): number | undefined {
+  const budget = paneRowBudget(tui);
+  if (budget === undefined) return undefined;
+  const chrome = renderedRows - listRows - detailRows + reservedDetailRows;
+  return windowSizeForBudget(budget - chrome, maximum);
+}
+
 export function padToWidth(value: string, width: number): string {
   const truncated = truncateToWidth(value, width, "…");
   return `${truncated}${" ".repeat(Math.max(0, width - visibleWidth(truncated)))}`;
+}
+
+/** Shared download presentation; the picker owns and disposes its spinner. */
+export class DownloadPanel {
+  private readonly spinner: Loader;
+  private state: DownloadState;
+  private stats: string | undefined;
+
+  constructor(tui: TUI, private readonly theme: UiTheme, state: DownloadState) {
+    this.state = state;
+    this.spinner = new Loader(tui, (text) => theme.fg("accent", text), (text) => theme.fg("muted", text), state.message);
+  }
+
+  update(state: DownloadState, stats?: string): void {
+    this.state = state;
+    this.stats = stats;
+    this.spinner.setMessage(state.message);
+  }
+
+  render(width: number, maxRows = Infinity): string[] {
+    const { model, downloaded, total } = this.state;
+    const text = (value: string) => new Text(value, PANEL_PADDING, 0).render(width);
+    const ratio = total > 0 ? Math.max(0, Math.min(1, downloaded / total)) : 0;
+    const barWidth = Math.max(1, Math.min(36, width - PANEL_PADDING * 2 - 5));
+    const filled = Math.round(ratio * barWidth);
+    const bar = this.theme.fg("accent", "█".repeat(filled)) + this.theme.fg("dim", "─".repeat(barWidth - filled));
+    const title = this.theme.fg("accent", this.theme.bold(`Downloading ${model.name}`));
+    const progress = `${bar}${total > 0 ? this.theme.fg("dim", ` ${Math.floor(ratio * 100)}%`) : ""}`;
+    const stats = this.theme.fg("muted", this.stats ?? (total > 0
+      ? `${formatBinarySize(downloaded)} / ${formatBinarySize(total)}` : "Preparing download…"));
+    const privacy = this.theme.fg("dim", "Models run locally — audio never leaves this machine.");
+    const hint = keyHint("tui.select.cancel", "stop (keeps progress)");
+    const activity = this.spinner.render(width);
+    const lines = ["", ...text(title), ...activity, ...text(progress), ...text(stats), ...text(privacy), "", ...text(hint)];
+    if (lines.length <= maxRows) return lines;
+    // Small terminals keep the current operation and cancel key visible.
+    const compact = [title, activity[1]?.trim() ?? this.state.message, progress, stats, privacy]
+      .slice(0, Math.max(0, maxRows - 1));
+    return [...compact, keyHint("tui.select.cancel", "stop")].map((line) => truncateToWidth(` ${line}`, width));
+  }
+
+  invalidate(): void { this.spinner.invalidate(); }
+  dispose(): void { this.spinner.stop(); }
 }
 
 /** Pi-native single-choice picker with optional fuzzy search and current-value marker. */
@@ -251,17 +317,17 @@ export class SingleSelectPicker<T extends string> extends Container implements F
       this.renderWidth = width;
       this.refresh();
     }
-    const budget = paneRowBudget(this.tui);
-    if (budget !== undefined) {
-      const total = super.render(width).length;
-      const detailLines = this.detail.render(width).length;
-      const chrome =
-        total - this.list.render(width).length - detailLines + this.maxDetailLines(width);
-      const limit = windowSizeForBudget(budget - chrome, this.options.maximumVisible ?? 10);
-      if (limit !== this.visibleLimit) {
-        this.visibleLimit = limit;
-        this.refresh();
-      }
+    const limit = paneListWindow(
+      this.tui,
+      super.render(width).length,
+      this.list.render(width).length,
+      this.detail.render(width).length,
+      this.maxDetailLines(width),
+      this.options.maximumVisible ?? 10,
+    );
+    if (limit !== undefined && limit !== this.visibleLimit) {
+      this.visibleLimit = limit;
+      this.refresh();
     }
     return super.render(width);
   }

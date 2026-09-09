@@ -5,21 +5,15 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { matchesKey } from "@earendil-works/pi-tui";
 import { existsSync } from "node:fs";
-import { CAPTURE_SAMPLE_RATE } from "./audio-constants.js";
-import type { MicrophoneCapture } from "./audio.js";
-import { PcmChunker } from "./pcm-chunker.js";
+import { displayLanguage, getCatalogModel } from "./catalog.js";
+import { DictationController } from "./dictation-controller.js";
 import type { TranscribeSettings } from "./settings.js";
 import { displayShortcut } from "./shortcut-core.js";
-import {
-  TranscriptionService,
-  type DictationReservation,
-} from "./transcription-service.js";
+import { TranscriptionService } from "./transcription-service.js";
 import type { RecordingMeter } from "./visualizer.js";
 
 type ActiveRecording = {
-  capture: MicrophoneCapture;
-  reservation: DictationReservation;
-  chunker: PcmChunker;
+  dictation: DictationController;
   meter: RecordingMeter;
 };
 
@@ -56,7 +50,8 @@ export function createPiTranscribeRuntime(
 ): PiTranscribeRuntime {
   let recording: ActiveRecording | undefined;
   let operation: Promise<void> | undefined;
-  let transcriptionAbort: AbortController | undefined;
+  let dictation: DictationController | undefined;
+  let shuttingDown = false;
   let stopListening: (() => void) | undefined;
   let settings: TranscribeSettings | undefined;
   let settingsLoaded = false;
@@ -126,14 +121,16 @@ export function createPiTranscribeRuntime(
 
   async function ensureSettings(
     ctx: ExtensionContext,
-  ): Promise<TranscribeSettings | undefined> {
+  ): Promise<{ configured?: TranscribeSettings; completedFirstRun: boolean }> {
     await loadSettingsOnce();
     if (settingsReadWarning && !settingsWarningShown) {
       settingsWarningShown = true;
       ctx.ui.notify(settingsReadWarning, "warning");
     }
 
-    if (settings && existsSync(settings.model.path)) return settings;
+    if (settings && existsSync(settings.model.path)) {
+      return { configured: settings, completedFirstRun: false };
+    }
 
     const previous = settings;
     if (settings) {
@@ -148,12 +145,19 @@ export function createPiTranscribeRuntime(
       ? await configureModel(ctx, previous)
       : await configureFirstRun(ctx);
     if (configured) {
+      const model = getCatalogModel(configured.model.id);
+      const languages = configured.preferredLanguages.map(displayLanguage).join(", ");
+      // Pi binds shortcuts at extension load. The command path reloads on its
+      // own; the shortcut path cannot, so say what it takes to use a new one.
+      const talk = configured.shortcut === registeredShortcut
+        ? `${displayShortcut(configured.shortcut)} to talk`
+        : `run /reload, then ${displayShortcut(configured.shortcut)} to talk`;
       ctx.ui.notify(
-        `Setup complete. Press ${displayShortcut(registeredShortcut)} to start recording and press it again to transcribe. Use /transcribe for settings.`,
+        `✓ pi-transcribe ready · ${talk}\n${languages} · ${model?.name ?? configured.model.id} · /transcribe for settings`,
         "info",
       );
     }
-    return configured;
+    return { configured, completedFirstRun: previous === undefined && configured !== undefined };
   }
 
   async function requireConfiguredSettingsForTool(): Promise<TranscribeSettings> {
@@ -185,11 +189,12 @@ export function createPiTranscribeRuntime(
         void runExclusive(ctx, () => cancelRecording(ctx));
         return { consume: true };
       }
-      if (transcriptionAbort) {
-        transcriptionAbort.abort();
+      if (dictation?.state.phase === "transcribing") {
+        void dictation.cancel();
         ctx.ui.notify("Transcription cancelled", "info");
         return { consume: true };
       }
+      if (dictation?.state.phase === "cancelling") return { consume: true };
     });
   }
 
@@ -203,61 +208,39 @@ export function createPiTranscribeRuntime(
     if (!active) return;
     recording = undefined;
     active.meter.stop();
-    try {
-      await active.capture.stop();
-    } catch {
-      // Discarded either way.
-    } finally {
-      active.chunker.discard();
-      active.reservation.cancel();
-      clearCancelListener();
-      ctx.ui.notify("Recording discarded", "info");
-    }
+    await active.dictation.dispose();
+    if (dictation === active.dictation) dictation = undefined;
+    clearCancelListener();
+    if (!shuttingDown) ctx.ui.notify("Recording discarded", "info");
+  }
+
+  async function reportDictationError(ctx: ExtensionContext, controller: DictationController): Promise<void> {
+    const state = controller.state;
+    if (state.phase !== "error" || shuttingDown) return;
+    if (state.stage === "capture") await reportCaptureError(ctx, state.cause);
+    else ctx.ui.notify(transcriptionErrorMessage(state.cause), "error");
   }
 
   async function stopAndTranscribe(ctx: ExtensionContext): Promise<void> {
     const { clearTranscribeWidget, showTranscribeStatus } = await loadVisualizer();
     const active = recording!;
     recording = undefined;
-    // Swap the meter for the transcribe status in place: clearing the slot
-    // first would collapse and re-expand the widget area, and capture.stop()
-    // is fast enough that an intermediate "finishing capture" state is noise.
     active.meter.stop({ clearWidget: false });
     showTranscribeStatus(ctx, "Transcribing…", { cancelable: true });
-
     try {
-      let pcm: Float32Array;
-      try {
-        const audio = await active.capture.stop();
-        active.chunker.flush();
-        pcm = audio.pcm;
-      } catch (error) {
-        active.reservation.cancel();
-        await reportCaptureError(ctx, error);
-        return;
-      }
-
-      const controller = new AbortController();
-      transcriptionAbort = controller;
-
-      try {
-        const text = await active.reservation.submit(pcm, controller.signal);
-        const seconds = pcm.length / CAPTURE_SAMPLE_RATE;
-
-        if (text) {
-          ctx.ui.pasteToEditor(text);
-          ctx.ui.notify(`Transcribed ${seconds.toFixed(1)}s of audio`, "info");
-        } else {
-          ctx.ui.notify(`No speech detected in ${seconds.toFixed(1)}s of audio`, "warning");
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          ctx.ui.notify(transcriptionErrorMessage(error), "error");
-        }
-      } finally {
-        if (transcriptionAbort === controller) transcriptionAbort = undefined;
+      const result = await active.dictation.stop();
+      if (shuttingDown) return;
+      if (!result) {
+        await reportDictationError(ctx, active.dictation);
+      } else if (result.text) {
+        ctx.ui.pasteToEditor(result.text);
+        ctx.ui.notify(`Transcribed ${result.speechSeconds.toFixed(1)}s of audio`, "info");
+      } else {
+        ctx.ui.notify(`No speech detected in ${result.speechSeconds.toFixed(1)}s of audio`, "warning");
       }
     } finally {
+      await active.dictation.dispose();
+      if (dictation === active.dictation) dictation = undefined;
       clearCancelListener();
       clearTranscribeWidget(ctx);
     }
@@ -267,7 +250,7 @@ export function createPiTranscribeRuntime(
     ctx: ExtensionContext,
     configured: TranscribeSettings,
   ): Promise<void> {
-    const { MicrophoneCapture, testMicrophonePermission } = await loadAudio();
+    const { createMicrophoneCapture, testMicrophonePermission } = await loadAudio();
     if (process.platform === "darwin") {
       const micStatus = await testMicrophonePermission();
       if (micStatus.status === "denied") {
@@ -282,77 +265,44 @@ export function createPiTranscribeRuntime(
         return;
       }
     }
-
     const { RecordingMeter } = await loadVisualizer();
-    const capture = new MicrophoneCapture(
-      configured.microphone.type === "device"
-        ? {
-            name: configured.microphone.name,
-            occurrence: configured.microphone.occurrence,
-          }
-        : undefined,
-    );
+    if (shuttingDown) return;
     const meter = new RecordingMeter();
-    let reservation: DictationReservation;
+    const controller = new DictationController(transcriptionService, {
+      createCapture: createMicrophoneCapture,
+      onFrame: (frame) => meter.push(frame),
+      onChange: () => meter.setModelState(controller.modelState),
+    });
+    dictation = controller;
     try {
-      reservation = transcriptionService.reserveDictation(configured);
-    } catch (error) {
-      ctx.ui.notify(transcriptionErrorMessage(error), "error");
-      return;
-    }
-    const chunker = new PcmChunker((chunk) => reservation.feed(chunk));
-    capture.onFrame = (frame) => {
-      // The chunker feeds the transcript, so it runs first: the capture loop
-      // swallows onFrame errors, and a visualizer failure must not drop audio
-      // from the streamed text while the frame still lands in the full clip.
-      chunker.push(frame);
-      meter.push(frame);
-    };
-    // Paint the startup status before PvRecorder construction blocks the event
-    // loop; the meter takes over only once the device is open and frames flow.
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    try {
-      capture.start();
-    } catch (error) {
-      reservation.cancel();
-      clearCancelListener();
-      await reportCaptureError(ctx, error);
-      return;
-    }
-    const active: ActiveRecording = { capture, reservation, chunker, meter };
-    try {
+      // Paint startup feedback before opening the native device blocks the loop.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (shuttingDown) return;
+      await controller.start(configured);
+      if (controller.state.phase !== "listening") {
+        await reportDictationError(ctx, controller);
+        return;
+      }
       meter.start(ctx);
-      recording = active;
-
-      void reservation.ready.then(
-        () => {
-          if (recording === active) active.meter.setModelState("ready");
-        },
-        () => {
-          if (recording === active) active.meter.setModelState("failed");
-        },
-      );
-
+      meter.setModelState(controller.modelState);
+      recording = { dictation: controller, meter };
       listenForCancel(ctx);
       ctx.ui.notify("Microphone recording started", "info");
     } catch (error) {
-      // The reservation parks the transcription loop until it is submitted or
-      // cancelled, so leaking it here would block every later dictation and
-      // file job until restart.
-      if (recording === active) recording = undefined;
+      recording = undefined;
       meter.stop();
-      chunker.discard();
-      reservation.cancel();
       clearCancelListener();
-      await capture.stop().catch(() => undefined);
-      ctx.ui.notify(
-        `Recording failed to start: ${error instanceof Error ? error.message : String(error)}`,
-        "error",
-      );
+      ctx.ui.notify(`Recording failed to start: ${error instanceof Error ? error.message : String(error)}`, "error");
+    } finally {
+      if (recording?.dictation !== controller) {
+        await controller.dispose();
+        if (dictation === controller) dictation = undefined;
+      }
     }
   }
 
   async function toggleCaptureTask(ctx: ExtensionContext): Promise<void> {
+    if (shuttingDown) return;
     if (recording) {
       await stopAndTranscribe(ctx);
       return;
@@ -363,10 +313,17 @@ export function createPiTranscribeRuntime(
     // Static text on the shared widget slot: an animated spinner repaints every
     // frame, and the meter replaces plain lines without a component swap.
     const { clearTranscribeWidget, showTranscribeStatus } = await loadVisualizer();
-    showTranscribeStatus(ctx, "Starting microphone…");
+    await loadSettingsOnce();
+    if (settings && existsSync(settings.model.path)) {
+      showTranscribeStatus(ctx, "Starting microphone…");
+    } else {
+      // Setup panes replace only the editor, so a status line set here or by
+      // the first-press handler in index.ts would sit above every setup step.
+      clearTranscribeWidget(ctx);
+    }
 
-    const configured = await ensureSettings(ctx);
-    if (configured) await startRecording(ctx, configured);
+    const { configured, completedFirstRun } = await ensureSettings(ctx);
+    if (configured && !completedFirstRun) await startRecording(ctx, configured);
     // The meter shares the widget slot and has replaced the spinner when
     // recording began; clear the spinner only when recording never started.
     if (!recording) clearTranscribeWidget(ctx);
@@ -403,8 +360,16 @@ export function createPiTranscribeRuntime(
 
     let reload = false;
     await runExclusive(ctx, async () => {
-      const configured = await ensureSettings(ctx);
+      await loadSettingsOnce();
+      const hadConfiguration = Boolean(settings && existsSync(settings.model.path));
+      const { configured } = await ensureSettings(ctx);
       if (!configured) return;
+      if (!hadConfiguration) {
+        // First-run setup ends on its Ready message rather than falling
+        // straight through into the regular settings menu.
+        reload = configured.shortcut !== registeredShortcut;
+        return;
+      }
       const { showSettingsMenu } = await import("./settings-menu.js");
       reload = await showSettingsMenu(pi, ctx, configured, registeredShortcut);
     });
@@ -436,21 +401,17 @@ export function createPiTranscribeRuntime(
   }
 
   async function shutdown(ctx: ExtensionContext): Promise<void> {
-    transcriptionAbort?.abort();
+    shuttingDown = true;
+    const disposal = dictation?.dispose();
+    recording?.meter.stop();
+    clearCancelListener();
     await Promise.all([
+      disposal,
       operation?.catch(() => undefined),
       transcriptionService.shutdown().catch(() => undefined),
     ]);
-
-    const active = recording;
     recording = undefined;
-    clearCancelListener();
-    if (active) {
-      active.chunker.discard();
-      active.reservation.cancel();
-      active.meter.stop();
-      await active.capture.stop().catch(() => undefined);
-    }
+    dictation = undefined;
     if (visualizerModulePromise) {
       const visualizer = await visualizerModulePromise.catch(() => undefined);
       visualizer?.clearTranscribeWidget(ctx);

@@ -1,7 +1,15 @@
 import type { CatalogModel } from "./catalog.js";
-import type { CatalogModelActivation } from "./model-picker.js";
-import { downloadCatalogModel, findCachedCatalogModel } from "./models.js";
+import { downloadCatalogModel, findCachedCatalogModel, type CachedCatalogModel } from "./models.js";
 import { writeSettings, type TranscribeSettings } from "./settings.js";
+
+export type CatalogModelActivation = (
+  model: CatalogModel,
+  options: {
+    cached: CachedCatalogModel | undefined;
+    signal: AbortSignal;
+    onProgress: (progress: { downloaded: number; total: number }) => void;
+  },
+) => Promise<{ path: string }>;
 
 /**
  * The download-then-save pipeline behind the model picker, shared by

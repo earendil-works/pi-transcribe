@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { CAPTURE_SAMPLE_RATE } from "./audio-constants.js";
 import { convertFrames } from "./pcm.js";
+import type { MicrophoneSetting } from "./settings.js";
 
 export { CAPTURE_SAMPLE_RATE } from "./audio-constants.js";
 
@@ -98,6 +99,10 @@ function findDeviceIndex(devices: readonly string[], selected: SelectedMicrophon
     occurrence += 1;
   }
   return -1;
+}
+
+export function createMicrophoneCapture(microphone: MicrophoneSetting): MicrophoneCapture {
+  return new MicrophoneCapture(microphone.type === "device" ? microphone : undefined);
 }
 
 export class MicrophoneCapture {

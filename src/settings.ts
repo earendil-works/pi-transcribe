@@ -2,10 +2,9 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  canonicalLanguage,
+  languageIdentity,
   getCatalogModel,
-  modelMatchesLanguage,
-  modelSupportsLanguage,
+  resolveModelLanguage,
   type CatalogModel,
 } from "./catalog.js";
 import { DEFAULT_SHORTCUT, normalizeShortcut } from "./shortcut-core.js";
@@ -63,7 +62,7 @@ function normalizeLanguages(value: unknown): string[] | undefined {
   if (!Array.isArray(value) || !value.every((language) => typeof language === "string")) {
     return undefined;
   }
-  const languages = [...new Set(value.map(canonicalLanguage).filter(Boolean))];
+  const languages = [...new Set(value.map(languageIdentity).filter(Boolean))];
   return languages.length > 0 ? languages : undefined;
 }
 
@@ -95,14 +94,11 @@ function defaultTranscriptionLanguage(
   preferredLanguages: readonly string[] = [],
 ): TranscriptionLanguage {
   if (model.capabilities.languageDetection) return "auto";
-  const preferred = preferredLanguages.find((language) => modelMatchesLanguage(model, language));
-  return (
-    model.languages.find(
-      (language) => preferred && canonicalLanguage(language) === canonicalLanguage(preferred),
-    ) ??
-    model.languages[0] ??
-    "en"
-  );
+  for (const language of preferredLanguages) {
+    const code = resolveModelLanguage(model, language);
+    if (code) return code;
+  }
+  return model.languages[0] ?? "en";
 }
 
 /** Keep an exact model language when possible; otherwise choose a safe default. */
@@ -113,7 +109,10 @@ export function transcriptionLanguageForModel(
 ): TranscriptionLanguage {
   if (typeof value === "string") {
     if (value === "auto" && model.capabilities.languageDetection) return value;
-    if (value !== "auto" && modelSupportsLanguage(model, value)) return value;
+    if (value !== "auto") {
+      const code = resolveModelLanguage(model, value);
+      if (code) return code;
+    }
   }
   return defaultTranscriptionLanguage(model, preferredLanguages);
 }
@@ -199,7 +198,7 @@ export function settingsForModel(
   const model = getCatalogModel(modelId);
   if (!model) throw new Error(`Unknown catalog model: ${modelId}`);
   const preferredLanguages = [
-    ...new Set((options.preferredLanguages ?? ["en"]).map(canonicalLanguage)),
+    ...new Set((options.preferredLanguages ?? ["en"]).map(languageIdentity)),
   ];
   return {
     version: SETTINGS_VERSION,
