@@ -75,8 +75,14 @@ export class RecommendedModelPicker extends Container implements Focusable {
   private downloadPanel: DownloadPanel | undefined;
   private disposed = false;
   private _focused = false;
-  get focused(): boolean { return this._focused; }
-  set focused(value: boolean) { this._focused = value; }
+
+  get focused(): boolean {
+    return this._focused;
+  }
+
+  set focused(value: boolean) {
+    this._focused = value;
+  }
 
   constructor(
     private readonly tui: TUI,
@@ -89,13 +95,19 @@ export class RecommendedModelPicker extends Container implements Focusable {
     options: RecommendedModelPickerOptions = {},
   ) {
     super();
-    this.selection = new ModelSelectionController<RecommendedModelResult | undefined>((...args) => this.activate(...args), {
-      models: recommendations.map((pick) => pick.model),
-      advance: true,
-      completion: { type: "complete" },
-      onChange: () => this.refresh(),
-      onExit: (result) => { this.downloadPanel?.dispose(); this.done(result); },
-    });
+    this.selection = new ModelSelectionController<RecommendedModelResult | undefined>(
+      (...args) => this.activate(...args),
+      {
+        models: recommendations.map((pick) => pick.model),
+        advance: true,
+        completion: { type: "complete" },
+        onChange: () => this.refresh(),
+        onExit: (result) => {
+          this.downloadPanel?.dispose();
+          this.done(result);
+        },
+      },
+    );
     this.best = recommendations.find((pick) => pick.roles.includes("best")) ?? recommendations[0]!;
     // Only benchmark-eligible alternatives are recommendations. Experimental
     // results contain one explicit fallback; unsupported and unbenchmarked
@@ -258,7 +270,10 @@ export class RecommendedModelPicker extends Container implements Focusable {
   private refresh(): void {
     if (this.disposed) return;
     this.body.clear();
-    if (!this.selection.download) { this.downloadPanel?.dispose(); this.downloadPanel = undefined; }
+    if (!this.selection.download) {
+      this.downloadPanel?.dispose();
+      this.downloadPanel = undefined;
+    }
     if (this.selection.download) {
       this.downloadPanel ??= new DownloadPanel(this.tui, this.theme, this.selection.download);
       this.downloadPanel.update(this.selection.download);
@@ -269,7 +284,10 @@ export class RecommendedModelPicker extends Container implements Focusable {
 
     this.body.addChild(new Spacer(1));
     this.body.addChild(new Text(this.heading(), PANEL_PADDING, 0));
-    if (this.notice()) this.body.addChild(new Text(this.theme.fg("warning", this.notice()), PANEL_PADDING, 0));
+    const notice = this.notice();
+    if (notice) {
+      this.body.addChild(new Text(this.theme.fg("warning", notice), PANEL_PADDING, 0));
+    }
     this.body.addChild(new Spacer(1));
 
     // The pick stands alone; the alternatives, folded or not, are styled
@@ -278,7 +296,9 @@ export class RecommendedModelPicker extends Container implements Focusable {
     for (const [index, row] of rows.entries()) {
       const active = index === this.selectedIndex;
       const prefix = active ? this.theme.fg("accent", "→ ") : "  ";
-      if (index > 0) this.body.addChild(new Spacer(1));
+      if (index > 0) {
+        this.body.addChild(new Spacer(1));
+      }
       if (row.type !== "model") {
         // Shaped like a model row, title then description, so it reads as
         // a choice rather than a footnote.
@@ -386,7 +406,10 @@ export class RecommendedModelPicker extends Container implements Focusable {
     });
     const row = rows[this.selectedIndex];
     const detail = new Container();
-    if (this.notice()) detail.addChild(new Text(this.theme.fg("warning", this.notice()), PANEL_PADDING, 0));
+    const notice = this.notice();
+    if (notice) {
+      detail.addChild(new Text(this.theme.fg("warning", notice), PANEL_PADDING, 0));
+    }
     if (row?.type === "model") {
       detail.addChild(this.modelDetails(row.recommendation));
     } else if (row) detail.addChild(new Text(this.rowLabel(row).description, PANEL_PADDING, 0));
@@ -398,7 +421,9 @@ export class RecommendedModelPicker extends Container implements Focusable {
   handleInput(data: string): void {
     if (!this.selection.acceptsInput) return;
     if (this.selection.download) {
-      if (this.keybindings.matches(data, "tui.select.cancel")) this.selection.cancelDownload();
+      if (this.keybindings.matches(data, "tui.select.cancel")) {
+        this.selection.cancelDownload();
+      }
       return;
     }
     if (this.keybindings.matches(data, "tui.input.tab")) {

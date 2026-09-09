@@ -6,17 +6,13 @@ import { join } from "node:path";
 import { initTheme, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Deferred } from "../src/deferred.js";
-import {
-  CatalogModelPicker,
-  LanguagePicker,
-  type CatalogModelActivation,
-} from "../src/model-picker.js";
+import { CatalogModelPicker, LanguagePicker } from "../src/model-picker.js";
 import { changeOnboardingModel, runOnboarding } from "../src/onboarding.js";
 import { RecommendedModelPicker } from "../src/recommendation-picker.js";
-import { findCachedCatalogModel } from "../src/models.js";
-import { getCatalogModel } from "../src/catalog.js";
+import { CATALOG_MODELS } from "../src/catalog.js";
+import { recommendModels } from "../src/recommendations.js";
 import { readSettings, settingsForModel, writeSettings } from "../src/settings.js";
-import { isolatedModelCache } from "./model-cache-helper.js";
+import { cacheCatalogModel, isolatedModelCache } from "./model-cache-helper.js";
 import { keybindings, stripAnsi, testTheme, testTui } from "./ui-helpers.js";
 
 initTheme("dark");
@@ -69,19 +65,11 @@ function initialSettings(languages = ["en"]) {
   });
 }
 
-/** Exercise the real commit pipeline with tiny cache fixtures, not downloads. */
-function selectRecommended(cache: ReturnType<typeof isolatedModelCache>): Step {
+/** Choose the primary pick from an expanded recommendation pane. */
+function selectRecommended(): Step {
   return (pane) => {
     assert.ok(pane instanceof RecommendedModelPicker);
-    const body = stripAnsi(pane.render(80).join("\n"));
-    assert.match(body, /English.*Mandarin/);
-    assert.match(body, /Qwen3-ASR 0\.6B/);
-    const internals = pane as unknown as { activate: CatalogModelActivation };
-    const activate = internals.activate;
-    internals.activate = (model, options) => {
-      const fixture = cache(model);
-      return activate(fixture, { ...options, cached: findCachedCatalogModel(fixture) });
-    };
+    assert.match(stripAnsi(pane.render(80).join("\n")), /English.*Mandarin/);
     pane.handleInput("\x1b[A"); // Expanded pane starts on the first alternative.
     pane.handleInput("\r");
   };
@@ -93,6 +81,9 @@ for (const entry of ["recommended", "other-models", "single-pick"] as const) {
     const cache = isolatedModelCache(t);
     const current = initialSettings(entry === "single-pick" ? ["en", "bs"] : ["en"]);
     await writeSettings(current);
+    const picks = recommendModels(CATALOG_MODELS, ["en", "zh"]);
+    for (const pick of picks) cacheCatalogModel(cache, pick.model);
+    const expectedModelId = picks.find((pick) => pick.roles.includes("best"))!.model.id;
     const steps: Step[] = [];
     if (entry === "other-models") {
       steps.push((pane) => {
@@ -111,14 +102,14 @@ for (const entry of ["recommended", "other-models", "single-pick"] as const) {
         assert.ok(pane instanceof LanguagePicker);
         done({ languages: ["en", "zh"], confirmed: true });
       },
-      selectRecommended(cache),
+      selectRecommended(),
     );
     const script = scriptedContext(steps);
     const result = await changeOnboardingModel(script.ctx, current);
     script.assertFinished();
     assert.ok(result);
     assert.deepEqual(result.preferredLanguages, ["en", "zh"]);
-    assert.equal(result.model.id, "Qwen3-ASR-0.6B");
+    assert.equal(result.model.id, expectedModelId);
     assert.equal(result.shortcut, current.shortcut);
     assert.deepEqual(result.microphone, current.microphone);
     assert.equal(result.chineseOutput, current.chineseOutput);
@@ -177,18 +168,16 @@ test("back after confirming new languages leaves settings unchanged until a mode
 test("exiting first-run languages after a committed selection preserves saved settings", async (t) => {
   isolatedSettings(t);
   const cache = isolatedModelCache(t);
+  for (const pick of recommendModels(CATALOG_MODELS, ["en"])) {
+    cacheCatalogModel(cache, pick.model);
+  }
   const script = scriptedContext([
     (_pane, done) => done({ languages: ["en"], confirmed: true }),
-    async (pane, done) => {
+    (pane) => {
       assert.ok(pane instanceof RecommendedModelPicker);
-      // The controller can finish a cached save before honoring pending Back.
-      const model = cache(getCatalogModel("parakeet-unified-en-0.6b")!);
-      const activation = (pane as unknown as { activate: CatalogModelActivation }).activate;
-      await activation(model, {
-        cached: findCachedCatalogModel(model), signal: new AbortController().signal,
-        onProgress() {},
-      });
-      done({ type: "back" });
+      // Back waits for the cached model's settings commit instead of losing it.
+      pane.handleInput("\r");
+      pane.handleInput("\x1b");
     },
     (_pane, done) => done(undefined),
   ]);

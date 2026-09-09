@@ -1,5 +1,5 @@
 import { getRepoFolderName } from "@huggingface/hub";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -27,4 +27,23 @@ export function isolatedModelCache(t: TestContext): (model: CatalogModel) => Cat
     writeFileSync(join(snapshot, model.filename), "x");
     return model;
   };
+}
+
+/** A sparse cache entry at the catalog size, visible to production cache probes. */
+export function cacheCatalogModel(
+  cache: (model: CatalogModel) => CatalogModel,
+  model: CatalogModel,
+): CatalogModel {
+  cache(model);
+  truncateSync(
+    join(
+      process.env.HF_HUB_CACHE!,
+      getRepoFolderName({ name: model.repository, type: "model" }),
+      "snapshots",
+      model.revision,
+      model.filename,
+    ),
+    model.size,
+  );
+  return model;
 }

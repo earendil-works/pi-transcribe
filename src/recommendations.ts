@@ -87,6 +87,72 @@ const DATA: RecommendationData = recommendationData;
 
 export const EXPERIMENTAL_MAX_ERROR_PERCENT = DATA.methodology.experimentalMaxErrorPercent;
 
+export type AccuracyLetter = "A" | "B" | "C" | "D" | "F";
+
+export type AccuracyGrade = {
+  letter: AccuracyLetter;
+  /** The letter with its modifier, e.g. "A-" or "B+"; D and F carry none. */
+  label: string;
+};
+
+/** Display bands are independent of recommendation eligibility policy. */
+const ACCURACY_CEILINGS = { A: 5, B: 10, C: 20, D: 30 } as const;
+/** Each sub-grade step multiplies the measured error by this. */
+const SUB_GRADE_STEP = Math.cbrt(2);
+
+/**
+ * A compact benchmark comparison, not a prediction of editing effort or
+ * whether the coding assistant will understand a request. A–C modifiers
+ * use proportional changes in error. Keep model-ratings-help.md in sync
+ * when changing display bands.
+ */
+export function accuracyGrade(errorPercent: number): AccuracyGrade {
+  if (errorPercent >= ACCURACY_CEILINGS.D) return { letter: "F", label: "F" };
+  if (errorPercent >= ACCURACY_CEILINGS.C) return { letter: "D", label: "D" };
+  const letters: [AccuracyLetter, number][] = [
+    ["A", ACCURACY_CEILINGS.A],
+    ["B", ACCURACY_CEILINGS.B],
+    ["C", ACCURACY_CEILINGS.C],
+  ];
+  const [letter, ceiling] = letters.find(([, limit]) => errorPercent < limit)!;
+  const modifier = errorPercent < ceiling / SUB_GRADE_STEP ** 2
+    ? "+"
+    : errorPercent < ceiling / SUB_GRADE_STEP
+      ? ""
+      : "-";
+  return { letter, label: `${letter}${modifier}` };
+}
+
+/** Processing time for the display's reference recording on the benchmark tier. */
+export function modelWaitSeconds(
+  model: CatalogModel,
+  tier: MachineTier = "accelerated",
+): number | undefined {
+  const xrt = DATA.models[model.id]?.performance[tier];
+  return xrt ? BENCHMARK_DICTATION_SECONDS / xrt : undefined;
+}
+
+// Display-only reference and bands; changing recommendation wait budgets must
+// not silently redefine the meter. See model-ratings-help.md for the explanation.
+export const BENCHMARK_DICTATION_SECONDS = 30;
+const SPEED_CUTOFF_SECONDS = [1.5, 3, 5, 10, 20] as const;
+export const SPEED_METER_STEPS = SPEED_CUTOFF_SECONDS.length;
+export function speedMeterLevel(processingSeconds: number): number {
+  return SPEED_CUTOFF_SECONDS.filter((cutoff) => processingSeconds < cutoff).length;
+}
+
+/**
+ * The model's grade for one language, or undefined when the benchmark has
+ * no measurement for it (whether or not the model claims the language).
+ */
+export function languageAccuracyGrade(
+  model: CatalogModel,
+  language: string,
+): AccuracyGrade | undefined {
+  const cell = DATA.models[model.id]?.accuracy[recommendationLanguage(language)];
+  return cell ? accuracyGrade(cell.error) : undefined;
+}
+
 /**
  * The speed the overall pick was chosen for: a dictation of
  * `dictationSeconds` back within `overallMaxWaitSeconds`. A model measured
@@ -150,6 +216,63 @@ function scoreModels(
     });
   }
   return scored;
+}
+
+/** A model's benchmark against a set of chosen languages, for the picker. */
+export type ModelBenchmark = {
+  /** Geometric mean of the per-language error, in percent. */
+  error: number;
+  /** Seconds after the benchmark dictation on the benchmark GPU. */
+  waitSeconds: number;
+  /** Every chosen language is under the usability floor. */
+  usable: boolean;
+  /** Needs the language set by hand for this set of languages. */
+  manual: boolean;
+};
+
+/**
+ * Benchmarks for every model measured on all the chosen languages, keyed by
+ * model id. Models that lack a language or a measurement are absent.
+ */
+export function benchmarkModels(
+  models: readonly CatalogModel[],
+  languages: readonly string[],
+): Map<string, ModelBenchmark> {
+  const floor = DATA.methodology.maxLanguageErrorPercent;
+  return new Map(
+    scoreModels(models, languages).map((candidate) => [
+      candidate.model.id,
+      {
+        error: candidate.error,
+        waitSeconds: candidate.waitSeconds,
+        usable: candidate.worstError < floor,
+        manual: candidate.manual,
+      },
+    ]),
+  );
+}
+
+/**
+ * The usable models on the speed/accuracy frontier: nothing usable is both
+ * quicker and more accurate. Equal models both stay, so a tie never hides one.
+ */
+export function frontierModelIds(
+  benchmarks: ReadonlyMap<string, ModelBenchmark>,
+): Set<string> {
+  const usable = [...benchmarks]
+    .filter(([, benchmark]) => benchmark.usable)
+    .map(([id, benchmark]) => ({ id, error: benchmark.error, wait: benchmark.waitSeconds }));
+  return new Set(
+    usable
+      .filter((candidate) =>
+        !usable.some((other) =>
+          other.error <= candidate.error &&
+          other.wait <= candidate.wait &&
+          (other.error < candidate.error || other.wait < candidate.wait),
+        ),
+      )
+      .map((candidate) => candidate.id),
+  );
 }
 
 function fallbackRecommendation(

@@ -39,22 +39,6 @@ export function displayLanguage(language: string): string {
   }
 }
 
-export function getCatalogLanguages(): string[] {
-  const languages = new Set<string>();
-  for (const model of CATALOG_MODELS) {
-    for (const language of model.languages) languages.add(languageIdentity(language));
-  }
-  return [...languages].sort((left, right) => {
-    if (left === "en") return -1;
-    if (right === "en") return 1;
-    return displayLanguage(left).localeCompare(displayLanguage(right));
-  });
-}
-
-export function modelSupportsLanguage(model: CatalogModel, language: string): boolean {
-  return model.languages.includes(language);
-}
-
 export function modelMatchesLanguage(model: CatalogModel, language: string): boolean {
   return resolveModelLanguage(model, language) !== undefined;
 }
@@ -69,14 +53,7 @@ function preferredLanguageMatchCount(
 }
 
 // The catalog carries no editorial rank or score: the pickers order measured
-// models by benchmark, so this only settles models without one.
-function compareCatalogModels(
-  left: CatalogModel,
-  right: CatalogModel,
-): number {
-  return left.name.localeCompare(right.name);
-}
-
+// models by benchmark, so names only settle models without one.
 export function rankCatalogModels(
   models: readonly CatalogModel[],
   preferredLanguages: readonly string[] = [],
@@ -87,29 +64,17 @@ export function rankCatalogModels(
       preferredLanguageMatchCount(right, preferredLanguages) -
         preferredLanguageMatchCount(left, preferredLanguages) ||
       Number(isDownloaded(right)) - Number(isDownloaded(left)) ||
-      compareCatalogModels(left, right),
+      left.name.localeCompare(right.name),
   );
 }
 
+/**
+ * What a catalog search runs against. Languages and capabilities are left
+ * out on purpose: the pickers already scope and grade by language, and a
+ * long haystack made short queries match nearly everything.
+ */
 export function catalogModelSearchText(model: CatalogModel): string {
-  const capabilities = [
-    model.capabilities.streaming ? "streaming live" : "",
-    model.capabilities.translate ? "translation translate" : "",
-    model.capabilities.languageDetection ? "automatic language detection" : "",
-  ];
-  const languages = model.languages.flatMap((language) => [
-    language, displayLanguage(language), languageIdentity(language), displayLanguage(languageIdentity(language)),
-  ]);
-  return [
-    model.id,
-    model.name,
-    model.description,
-    model.family,
-    model.parameters ?? "",
-    model.repository,
-    ...capabilities,
-    ...languages,
-  ].join(" ");
+  return [model.id, model.name, model.family, model.parameters ?? ""].join(" ").toLowerCase();
 }
 
 export function getCatalogModel(id: string): CatalogModel | undefined {

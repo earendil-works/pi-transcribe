@@ -75,6 +75,21 @@ export function windowSizeForBudget(
   return Math.max(minimum, Math.min(maximum, budget));
 }
 
+/** Compute a list window while reserving the pane's non-list content. */
+export function paneListWindow(
+  tui: TUI,
+  renderedRows: number,
+  listRows: number,
+  detailRows: number,
+  reservedDetailRows: number,
+  maximum: number,
+): number | undefined {
+  const budget = paneRowBudget(tui);
+  if (budget === undefined) return undefined;
+  const chrome = renderedRows - listRows - detailRows + reservedDetailRows;
+  return windowSizeForBudget(budget - chrome, maximum);
+}
+
 export function padToWidth(value: string, width: number): string {
   const truncated = truncateToWidth(value, width, "…");
   return `${truncated}${" ".repeat(Math.max(0, width - visibleWidth(truncated)))}`;
@@ -302,17 +317,17 @@ export class SingleSelectPicker<T extends string> extends Container implements F
       this.renderWidth = width;
       this.refresh();
     }
-    const budget = paneRowBudget(this.tui);
-    if (budget !== undefined) {
-      const total = super.render(width).length;
-      const detailLines = this.detail.render(width).length;
-      const chrome =
-        total - this.list.render(width).length - detailLines + this.maxDetailLines(width);
-      const limit = windowSizeForBudget(budget - chrome, this.options.maximumVisible ?? 10);
-      if (limit !== this.visibleLimit) {
-        this.visibleLimit = limit;
-        this.refresh();
-      }
+    const limit = paneListWindow(
+      this.tui,
+      super.render(width).length,
+      this.list.render(width).length,
+      this.detail.render(width).length,
+      this.maxDetailLines(width),
+      this.options.maximumVisible ?? 10,
+    );
+    if (limit !== undefined && limit !== this.visibleLimit) {
+      this.visibleLimit = limit;
+      this.refresh();
     }
     return super.render(width);
   }

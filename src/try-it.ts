@@ -1,7 +1,11 @@
 import { keyHint, rawKeyHint, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  type Component, matchesKey, Text, truncateToWidth,
-  type KeybindingsManager, type TUI,
+  type Component,
+  matchesKey,
+  Text,
+  truncateToWidth,
+  type KeybindingsManager,
+  type TUI,
 } from "@earendil-works/pi-tui";
 import { createMicrophoneCapture } from "./audio.js";
 import { getCatalogModel } from "./catalog.js";
@@ -16,22 +20,35 @@ import { editorBorder, PANEL_PADDING, panelBorder, paneRowBudget } from "./ui-co
 import { METER_UPDATE_MS, renderMeterLine, SpectrumAnalyzer } from "./visualizer.js";
 
 type UiTheme = ExtensionContext["ui"]["theme"];
+
 export type TryItResult =
-  | { action: "done" } | { action: "skip" } | { action: "shortcut" }
-  | { action: "microphone" } | { action: "model" };
+  | { action: "done" }
+  | { action: "skip" }
+  | { action: "shortcut" }
+  | { action: "microphone" }
+  | { action: "model" };
 
 /** Shorter takes are dominated by fixed costs and say little about speed. */
 const MIN_SPEECH_SECONDS_TO_JUDGE = 5;
+
 export function realTimeFactor(speechSeconds: number, transcribeSeconds: number): number {
   return speechSeconds / Math.max(transcribeSeconds, 0.05);
 }
-export function formatTryItTiming(speechSeconds: number, transcribeSeconds: number, modelName: string): string {
+
+export function formatTryItTiming(
+  speechSeconds: number,
+  transcribeSeconds: number,
+  modelName: string,
+): string {
   const factor = realTimeFactor(speechSeconds, transcribeSeconds);
   return `${speechSeconds.toFixed(1)} s audio · ${transcribeSeconds.toFixed(1)} s to transcribe · ${factor.toFixed(1)}× real time · ${modelName}`;
 }
+
 export function needsFasterModel(speechSeconds: number, transcribeSeconds: number): boolean {
-  return speechSeconds >= MIN_SPEECH_SECONDS_TO_JUDGE &&
-    realTimeFactor(speechSeconds, transcribeSeconds) < COMFORTABLE_REAL_TIME_FACTOR;
+  return (
+    speechSeconds >= MIN_SPEECH_SECONDS_TO_JUDGE &&
+    realTimeFactor(speechSeconds, transcribeSeconds) < COMFORTABLE_REAL_TIME_FACTOR
+  );
 }
 
 /** Presentation and navigation only; native resources belong to the controller. */
@@ -69,7 +86,11 @@ export class TryItPane implements Component {
   private refresh(): void {
     if (!this.closed && !this.disposed) this.tui.requestRender();
   }
-  invalidate(): void { this.preview.invalidate(); this.refresh(); }
+
+  invalidate(): void {
+    this.preview.invalidate();
+    this.refresh();
+  }
 
   render(width: number): string[] {
     const state = this.dictation.state;
@@ -87,10 +108,13 @@ export class TryItPane implements Component {
         bands: this.analyzer.bands, elapsedMs: this.dictation.elapsedMs,
         modelState: this.dictation.modelState,
       });
-    } else if (state.phase === "transcribing") status = fg("accent", "Transcribing…");
-    else if (state.phase === "starting") status = fg("muted", "Starting microphone…");
-    else if (state.phase === "cancelling") status = fg("muted", "Cancelling…");
-    else if (state.phase === "result") {
+    } else if (state.phase === "transcribing") {
+      status = fg("accent", "Transcribing…");
+    } else if (state.phase === "starting") {
+      status = fg("muted", "Starting microphone…");
+    } else if (state.phase === "cancelling") {
+      status = fg("muted", "Cancelling…");
+    } else if (state.phase === "result") {
       const { text: transcript, speechSeconds, transcribeSeconds } = state.result;
       status = fg("muted", formatTryItTiming(speechSeconds, transcribeSeconds, modelName));
       content = transcript || fg("muted", "No speech detected");
@@ -104,14 +128,25 @@ export class TryItPane implements Component {
       if (state.stage === "capture" && process.platform === "darwin") {
         content += "\nCheck System Settings → Privacy & Security → Microphone for your terminal app.";
       }
-    } else status = fg("muted", "Ready to listen");
+    } else {
+      status = fg("muted", "Ready to listen");
+    }
     this.preview.setText(content);
 
     let hints: string;
-    if (state.phase === "listening") hints = `${rawKeyHint(shortcut, "stop")}  ${keyHint("tui.select.cancel", "discard")}`;
-    else if (state.phase === "transcribing" || state.phase === "starting" || state.phase === "cancelling") hints = keyHint("tui.select.cancel", "cancel");
-    else if (state.phase === "result") hints = `${keyHint("tui.select.confirm", "looks good")}  ${rawKeyHint(shortcut, "try again")}`;
-    else hints = `${rawKeyHint(shortcut, state.phase === "error" ? "try again" : "record")}  ${keyHint("tui.select.cancel", "skip")}`;
+    if (state.phase === "listening") {
+      hints = `${rawKeyHint(shortcut, "stop")}  ${keyHint("tui.select.cancel", "discard")}`;
+    } else if (
+      state.phase === "transcribing" ||
+      state.phase === "starting" ||
+      state.phase === "cancelling"
+    ) {
+      hints = keyHint("tui.select.cancel", "cancel");
+    } else if (state.phase === "result") {
+      hints = `${keyHint("tui.select.confirm", "looks good")}  ${rawKeyHint(shortcut, "try again")}`;
+    } else {
+      hints = `${rawKeyHint(shortcut, state.phase === "error" ? "try again" : "record")}  ${keyHint("tui.select.cancel", "skip")}`;
+    }
 
     const setting = (label: string, value: string, key: string, compact: boolean) => {
       const suffix = ` (${key} to change)`;
@@ -169,6 +204,7 @@ export class TryItPane implements Component {
     this.nextPaintAt = 0;
     void this.dictation.start(this.settings);
   }
+
   private leave(result: TryItResult): void {
     if (this.closed || this.disposed) return;
     this.closed = true;
@@ -179,13 +215,19 @@ export class TryItPane implements Component {
     if (this.closed || this.disposed) return;
     const phase = this.dictation.state.phase;
     if (matchesKey(data, this.settings.shortcut as Parameters<typeof matchesKey>[1])) {
-      if (phase === "listening") void this.dictation.stop();
-      else if (["idle", "ready", "result", "error"].includes(phase)) this.start();
+      if (phase === "listening") {
+        void this.dictation.stop();
+      } else if (["idle", "ready", "result", "error"].includes(phase)) {
+        this.start();
+      }
       return;
     }
     if (this.keybindings.matches(data, "tui.select.cancel")) {
-      if (["starting", "listening", "transcribing", "cancelling"].includes(phase)) void this.dictation.cancel();
-      else this.leave({ action: phase === "result" ? "done" : "skip" });
+      if (["starting", "listening", "transcribing", "cancelling"].includes(phase)) {
+        void this.dictation.cancel();
+      } else {
+        this.leave({ action: phase === "result" ? "done" : "skip" });
+      }
       return;
     }
     if (!["idle", "ready", "result", "error"].includes(phase)) return;
@@ -197,10 +239,15 @@ export class TryItPane implements Component {
       if (phase === "result") this.leave({ action: "done" });
       return;
     }
-    if (data.toLowerCase() === "m") this.leave({ action: "microphone" });
-    else if (data.toLowerCase() === "s") this.leave({ action: "shortcut" });
-    else if (data.toLowerCase() === "c") this.leave({ action: "model" });
+    if (data.toLowerCase() === "m") {
+      this.leave({ action: "microphone" });
+    } else if (data.toLowerCase() === "s") {
+      this.leave({ action: "shortcut" });
+    } else if (data.toLowerCase() === "c") {
+      this.leave({ action: "model" });
+    }
   }
+
   dispose(): Promise<void> {
     this.disposed = true;
     return this.dictation.dispose();

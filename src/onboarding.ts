@@ -6,6 +6,7 @@ import {
   type CatalogModelPostActivation,
 } from "./model-picker.js";
 import { createModelActivation } from "./model-activation.js";
+import { chooseYourModel, downloadedCatalogModels } from "./your-models-picker.js";
 import { testMicrophonePermission } from "./audio.js";
 import { chooseMicrophone, microphonesEqual } from "./microphone-picker.js";
 import {
@@ -33,6 +34,19 @@ function requireTui(ctx: ExtensionContext): boolean {
   return false;
 }
 
+type SettingsOptions = NonNullable<Parameters<typeof settingsForModel>[2]>;
+
+/** Build the shared download-and-save pipeline from the flow's live settings. */
+function createSettingsActivation(
+  options: () => SettingsOptions,
+  onCommitted: (settings: TranscribeSettings) => void,
+) {
+  return createModelActivation({
+    buildSettings: (model, path) => settingsForModel(model.id, path, options()),
+    onCommitted,
+  });
+}
+
 type ModelSelectionOptions = {
   shortcut?: string;
   preferredLanguages?: readonly string[];
@@ -56,39 +70,50 @@ export async function runModelSelection(
   ];
   let currentModelId = options.currentModelId;
   let configured: TranscribeSettings | undefined;
-  const { activate, waitForCommits } = createModelActivation({
-    buildSettings: (model, path) =>
-      settingsForModel(model.id, path, {
-        shortcut: configured?.shortcut ?? options.shortcut ?? DEFAULT_SHORTCUT,
-        preferredLanguages,
-        transcriptionLanguage:
-          configured?.transcriptionLanguage ?? options.transcriptionLanguage,
-        chineseOutput: configured?.chineseOutput ?? options.chineseOutput,
-        microphone: configured?.microphone ?? options.microphone ?? DEFAULT_MICROPHONE,
-      }),
-    onCommitted: (settings) => {
+  const { activate, waitForCommits } = createSettingsActivation(
+    () => ({
+      shortcut: configured?.shortcut ?? options.shortcut ?? DEFAULT_SHORTCUT,
+      preferredLanguages,
+      transcriptionLanguage:
+        configured?.transcriptionLanguage ?? options.transcriptionLanguage,
+      chineseOutput: configured?.chineseOutput ?? options.chineseOutput,
+      microphone: configured?.microphone ?? options.microphone ?? DEFAULT_MICROPHONE,
+    }),
+    (settings) => {
       configured = settings;
       currentModelId = settings.model.id;
     },
-  });
+  );
 
+  // Switching between the models already on disk is the everyday case and
+  // gets the first page; the catalog is one row further. A single downloaded
+  // model is nothing to switch between, so the catalog opens directly.
+  const switching = () => downloadedCatalogModels().length >= 2;
+  let page: "yours" | "browse" = switching() ? "yours" : "browse";
   while (true) {
-    const selection = await chooseCatalogModel(
-      ctx,
-      preferredLanguages,
-      currentModelId,
-      {
-        postActivation: options.postActivation,
-        // Keep the post-selection state when the picker reopens after a
-        // round-trip through the language step.
-        activatedInFlow: configured !== undefined,
-        onActivate: activate,
-      },
-    );
+    const paneOptions = {
+      postActivation: options.postActivation,
+      // Keep the post-selection state when the picker reopens after a
+      // round-trip through the language step.
+      activatedInFlow: configured !== undefined,
+      onActivate: activate,
+    };
+    const selection = page === "yours"
+      ? await chooseYourModel(ctx, preferredLanguages, currentModelId, paneOptions)
+      : await chooseCatalogModel(ctx, preferredLanguages, currentModelId, paneOptions);
     // The picker can close while its last commit is still in flight; wait so
     // configured reflects every selection that will land on disk.
     await waitForCommits();
 
+    if (selection?.type === "browse") {
+      page = "browse";
+      continue;
+    }
+    if (!selection && page === "browse" && switching()) {
+      // Esc from the catalog steps back to the downloaded models.
+      page = "yours";
+      continue;
+    }
     if (!selection || selection.type === "complete") return configured;
 
     // Esc and Continue both keep the selection here; the picker edits live
@@ -187,18 +212,17 @@ export async function changeOnboardingModel(
     ? "recommended"
     : "browse";
   let chosen: TranscribeSettings | undefined;
-  const activation = createModelActivation({
-    buildSettings: (model, path) =>
-      settingsForModel(model.id, path, {
-        shortcut: current.shortcut,
-        preferredLanguages: languages,
-        microphone: current.microphone,
-        chineseOutput: current.chineseOutput,
-      }),
-    onCommitted: (settings) => {
+  const activation = createSettingsActivation(
+    () => ({
+      shortcut: current.shortcut,
+      preferredLanguages: languages,
+      microphone: current.microphone,
+      chineseOutput: current.chineseOutput,
+    }),
+    (settings) => {
       chosen = settings;
     },
-  });
+  );
 
   while (true) {
     const result = pane === "recommended"
@@ -250,16 +274,12 @@ export async function runOnboarding(
     // The picks are judged on the benchmark rig; the Try it step measures
     // the real wait on this machine.
     const picks = recommendModels(CATALOG_MODELS, languages);
-    const { activate, waitForCommits } = createModelActivation({
-      buildSettings: (model, path) =>
-        settingsForModel(model.id, path, {
-          shortcut,
-          preferredLanguages: languages,
-        }),
-      onCommitted: (settings) => {
+    const { activate, waitForCommits } = createSettingsActivation(
+      () => ({ shortcut, preferredLanguages: languages }),
+      (settings) => {
         configured = settings;
       },
-    });
+    );
 
     let changeLanguages = false;
     while (!changeLanguages) {
