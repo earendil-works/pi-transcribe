@@ -17,10 +17,6 @@ export type CatalogModel = {
     readonly translate: boolean;
     readonly languageDetection: boolean;
   };
-  readonly speedScore: number | null;
-  readonly accuracyScore: number | null;
-  readonly recommended: boolean;
-  readonly recommendedRank: number | null;
   readonly quant: string;
   readonly filename: string;
   readonly size: number;
@@ -72,19 +68,13 @@ function preferredLanguageMatchCount(
   ).length;
 }
 
+// The catalog carries no editorial rank or score: the pickers order measured
+// models by benchmark, so this only settles models without one.
 function compareCatalogModels(
   left: CatalogModel,
   right: CatalogModel,
 ): number {
-  const leftRank = left.recommendedRank ?? Number.MAX_SAFE_INTEGER;
-  const rightRank = right.recommendedRank ?? Number.MAX_SAFE_INTEGER;
-  return (
-    leftRank - rightRank ||
-    Number(right.recommended) - Number(left.recommended) ||
-    (right.accuracyScore ?? 0) - (left.accuracyScore ?? 0) ||
-    (right.speedScore ?? 0) - (left.speedScore ?? 0) ||
-    left.name.localeCompare(right.name)
-  );
+  return left.name.localeCompare(right.name);
 }
 
 export function rankCatalogModels(

@@ -28,6 +28,9 @@ const REMOVED_MODELS = [
   "granite-4.0-1b-speech",
   "granite-speech-4.1-2b-nar",
   "granite-speech-4.1-2b-plus",
+  // Lowercase output without punctuation: unusable for dictation.
+  "parakeet-ctc-0.6b",
+  "parakeet-rnnt-0.6b",
 ];
 
 test("generated catalog matches its source and benchmarks contain no stale model IDs", () => {
@@ -54,7 +57,7 @@ test("curation preserves the chosen Granite representative and requested special
     "Voxtral-Mini-3B-2507", "Voxtral-Mini-4B-Realtime-2602",
     "whisper-small", "whisper-medium", "whisper-large-v2", "whisper-large-v3", "whisper-large-v3-turbo",
     "canary-180m-flash", "canary-1b-flash", "canary-1b-v2", "canary-qwen-2.5b",
-    "parakeet-unified-en-0.6b", "parakeet-rnnt-0.6b", "parakeet-ctc-0.6b",
+    "parakeet-unified-en-0.6b",
     "parakeet-tdt-0.6b-v2", "parakeet-tdt-0.6b-v3", "parakeet-tdt_ctc-110m",
     "moonshine-tiny", "moonshine-streaming-tiny", "moonshine-tiny-zh",
     ...["ja", "ko", "uk", "vi"].flatMap((language) => [`moonshine-tiny-${language}`, `moonshine-base-${language}`]),

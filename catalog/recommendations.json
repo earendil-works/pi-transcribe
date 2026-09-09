@@ -473,18 +473,6 @@
       },
       "performance": {"accelerated": 25, "cpu": 13.5}
     },
-    "parakeet-ctc-0.6b": {
-      "accuracy": {
-        "en": {"error": 5.53, "ciLower": 5.06}
-      },
-      "performance": {"accelerated": 22.5, "cpu": 10}
-    },
-    "parakeet-rnnt-0.6b": {
-      "accuracy": {
-        "en": {"error": 4.57, "ciLower": 4.13}
-      },
-      "performance": {"accelerated": 14.5, "cpu": 8}
-    },
     "Qwen3-ASR-1.7B": {
       "accuracy": {
         "ar": {"error": 14.91, "ciLower": 13.53},
