@@ -289,15 +289,6 @@
       },
       "performance": {"accelerated": 9, "cpu": 4.5}
     },
-    "canary-1b-flash": {
-      "accuracy": {
-        "de": {"error": 6.13, "ciLower": 5.5},
-        "en": {"error": 4.75, "ciLower": 4.14},
-        "es": {"error": 6.73, "ciLower": 5.99},
-        "fr": {"error": 7.22, "ciLower": 6.47}
-      },
-      "performance": {"accelerated": 14.4, "cpu": 6.9}
-    },
     "canary-1b-v2": {
       "accuracy": {
         "bg": {"error": 9.22, "ciLower": 8.43},
@@ -336,7 +327,8 @@
     },
     "cohere-transcribe-arabic-07-2026": {
       "accuracy": {
-        "ar": {"error": 11.06, "ciLower": 9.62}
+        "ar": {"error": 11.06, "ciLower": 9.62},
+        "en": {"error": 4.88, "ciLower": 4.25}
       },
       "performance": {"accelerated": 8, "cpu": 3}
     },
@@ -348,23 +340,11 @@
       },
       "performance": {"accelerated": 10.5, "cpu": 6.5}
     },
-    "gigaam-v3-ctc": {
-      "accuracy": {
-        "ru": {"error": 8.42, "ciLower": 7.64}
-      },
-      "performance": {"accelerated": 33, "cpu": 9}
-    },
     "gigaam-v3-e2e-ctc": {
       "accuracy": {
         "ru": {"error": 5.53, "ciLower": 5.01}
       },
       "performance": {"accelerated": 30, "cpu": 9}
-    },
-    "gigaam-v3-rnnt": {
-      "accuracy": {
-        "ru": {"error": 8.07, "ciLower": 7.34}
-      },
-      "performance": {"accelerated": 25, "cpu": 9}
     },
     "gigaam-v3-e2e-rnnt": {
       "accuracy": {
@@ -388,78 +368,6 @@
         "en": {"error": 37.48, "ciLower": 35.83}
       },
       "performance": {"accelerated": 71, "cpu": 19.5}
-    },
-    "moonshine-streaming-tiny": {
-      "accuracy": {
-        "en": {"error": 18.18, "ciLower": 15.79}
-      },
-      "performance": {"accelerated": 59.5, "cpu": 54.5}
-    },
-    "moonshine-tiny": {
-      "accuracy": {
-        "en": {"error": 14.13, "ciLower": 12.44}
-      },
-      "performance": {"accelerated": 56, "cpu": 45.5}
-    },
-    "moonshine-tiny-ja": {
-      "accuracy": {
-        "ja": {"error": 13.44, "ciLower": 12.64}
-      },
-      "performance": {}
-    },
-    "moonshine-tiny-ko": {
-      "accuracy": {
-        "ko": {"error": 9, "ciLower": 7.86}
-      },
-      "performance": {}
-    },
-    "moonshine-tiny-uk": {
-      "accuracy": {
-        "uk": {"error": 18.76, "ciLower": 17.7}
-      },
-      "performance": {}
-    },
-    "moonshine-tiny-vi": {
-      "accuracy": {
-        "vi": {"error": 13.37, "ciLower": 12.57}
-      },
-      "performance": {}
-    },
-    "moonshine-tiny-zh": {
-      "accuracy": {
-        "zh": {"error": 13.88, "ciLower": 12.83}
-      },
-      "performance": {}
-    },
-    "moonshine-base-ja": {
-      "accuracy": {
-        "ja": {"error": 11.11, "ciLower": 10.05}
-      },
-      "performance": {}
-    },
-    "moonshine-base-ko": {
-      "accuracy": {
-        "ko": {"error": 8.12, "ciLower": 6.89}
-      },
-      "performance": {}
-    },
-    "moonshine-base-uk": {
-      "accuracy": {
-        "uk": {"error": 14.38, "ciLower": 13.42}
-      },
-      "performance": {}
-    },
-    "moonshine-base-vi": {
-      "accuracy": {
-        "vi": {"error": 9.96, "ciLower": 9.25}
-      },
-      "performance": {}
-    },
-    "nemotron-speech-streaming-en-0.6b": {
-      "accuracy": {
-        "en": {"error": 6.43, "ciLower": 5.81}
-      },
-      "performance": {"accelerated": 13, "cpu": 7.5}
     },
     "parakeet-tdt_ctc-110m": {
       "accuracy": {
@@ -530,190 +438,6 @@
         "pt": {"error": 3.84, "ciLower": 3.44}
       },
       "performance": {"accelerated": 1.25, "cpu": 0.5}
-    },
-    "whisper-tiny": {
-      "accuracy": {
-        "af": {"error": 95.3, "ciLower": 92.75},
-        "am": {"error": 122.14, "ciLower": 118.55},
-        "ar": {"error": 67.48, "ciLower": 65.37},
-        "as": {"error": 100.56, "ciLower": 100.15},
-        "az": {"error": 94.73, "ciLower": 93.35},
-        "be": {"error": 96.03, "ciLower": 95.33},
-        "bg": {"error": 84.87, "ciLower": 83.52},
-        "bn": {"error": 100.37, "ciLower": 100.05},
-        "bs": {"error": 87.22, "ciLower": 85.97},
-        "ca": {"error": 46.33, "ciLower": 45.13},
-        "cs": {"error": 87.17, "ciLower": 85.89},
-        "cy": {"error": 116.68, "ciLower": 114.19},
-        "da": {"error": 88.42, "ciLower": 86.83},
-        "de": {"error": 31.56, "ciLower": 30.53},
-        "el": {"error": 77.76, "ciLower": 75.95},
-        "en": {"error": 13.84, "ciLower": 12.85},
-        "es": {"error": 18.95, "ciLower": 18.18},
-        "et": {"error": 101.33, "ciLower": 99.81},
-        "fa": {"error": 100.18, "ciLower": 97.96},
-        "fi": {"error": 68.58, "ciLower": 67.17},
-        "fil": {"error": 70.63, "ciLower": 69.17},
-        "fr": {"error": 44.19, "ciLower": 42.58},
-        "gl": {"error": 59.44, "ciLower": 58.41},
-        "gu": {"error": 100.26, "ciLower": 100.02},
-        "ha": {"error": 105.17, "ciLower": 102.75},
-        "he": {"error": 77.35, "ciLower": 75.88},
-        "hi": {"error": 101.52, "ciLower": 100.33},
-        "hr": {"error": 84.36, "ciLower": 83.29},
-        "hu": {"error": 90.54, "ciLower": 88.94},
-        "hy": {"error": 110.5, "ciLower": 108.71},
-        "id": {"error": 60.49, "ciLower": 58.53},
-        "is": {"error": 115.88, "ciLower": 108.2},
-        "it": {"error": 31.24, "ciLower": 30.23},
-        "ja": {"error": 39.38, "ciLower": 37.82},
-        "ka": {"error": 110.34, "ciLower": 108.68},
-        "kk": {"error": 136.56, "ciLower": 131.42},
-        "km": {"error": 111.78, "ciLower": 108.85},
-        "kn": {"error": 100.32, "ciLower": 100.1},
-        "ko": {"error": 19.07, "ciLower": 17.69},
-        "lb": {"error": 99.69, "ciLower": 98.93},
-        "ln": {"error": 103.55, "ciLower": 101.39},
-        "lo": {"error": 105.48, "ciLower": 102.73},
-        "lt": {"error": 105, "ciLower": 103.27},
-        "lv": {"error": 95.98, "ciLower": 94.86},
-        "mi": {"error": 96.27, "ciLower": 95.25},
-        "mk": {"error": 78.61, "ciLower": 77.42},
-        "ml": {"error": 100.03, "ciLower": 99.99},
-        "mn": {"error": 110.21, "ciLower": 107.98},
-        "mr": {"error": 100.82, "ciLower": 100.19},
-        "ms": {"error": 62.17, "ciLower": 60.25},
-        "mt": {"error": 99.85, "ciLower": 99.1},
-        "my": {"error": 108.53, "ciLower": 106.54},
-        "nb": {"error": 67.36, "ciLower": 65.41},
-        "ne": {"error": 101.3, "ciLower": 100.35},
-        "nl": {"error": 54.86, "ciLower": 53.09},
-        "oc": {"error": 96.44, "ciLower": 94.89},
-        "pa": {"error": 100.54, "ciLower": 100.06},
-        "pl": {"error": 54.22, "ciLower": 52.62},
-        "ps": {"error": 101.04, "ciLower": 100.5},
-        "pt": {"error": 24.07, "ciLower": 23.02},
-        "ro": {"error": 82.43, "ciLower": 81.13},
-        "ru": {"error": 35.64, "ciLower": 34.38},
-        "sd": {"error": 105.42, "ciLower": 103.11},
-        "sk": {"error": 82.2, "ciLower": 81.01},
-        "sl": {"error": 91.29, "ciLower": 90.06},
-        "sn": {"error": 118.33, "ciLower": 115.19},
-        "so": {"error": 105.31, "ciLower": 103.9},
-        "sr": {"error": 89.2, "ciLower": 87.49},
-        "sv": {"error": 59.36, "ciLower": 57.64},
-        "sw": {"error": 99.96, "ciLower": 98.66},
-        "ta": {"error": 87.46, "ciLower": 84.77},
-        "te": {"error": 101.18, "ciLower": 100.3},
-        "tg": {"error": 102.39, "ciLower": 100.82},
-        "th": {"error": 54.82, "ciLower": 53.08},
-        "tr": {"error": 47.98, "ciLower": 46.56},
-        "uk": {"error": 57.49, "ciLower": 56.26},
-        "ur": {"error": 71.42, "ciLower": 68.68},
-        "uz": {"error": 103.19, "ciLower": 102.2},
-        "vi": {"error": 64.49, "ciLower": 62.89},
-        "yo": {"error": 102.29, "ciLower": 101.01},
-        "zh": {"error": 41.91, "ciLower": 40.85}
-      },
-      "performance": {"accelerated": 61, "cpu": 24.75}
-    },
-    "whisper-tiny.en": {
-      "accuracy": {
-        "en": {"error": 10.72, "ciLower": 9.89}
-      },
-      "performance": {"accelerated": 60.7, "cpu": 26.05}
-    },
-    "whisper-base": {
-      "accuracy": {
-        "af": {"error": 83.05, "ciLower": 80.55},
-        "am": {"error": 150.97, "ciLower": 144.02},
-        "ar": {"error": 52.74, "ciLower": 50.65},
-        "as": {"error": 100.6, "ciLower": 100.3},
-        "az": {"error": 81.22, "ciLower": 79.97},
-        "be": {"error": 92.72, "ciLower": 92.02},
-        "bg": {"error": 70.53, "ciLower": 69.06},
-        "bn": {"error": 100.73, "ciLower": 100.32},
-        "bs": {"error": 71.53, "ciLower": 70.38},
-        "ca": {"error": 29.48, "ciLower": 28.52},
-        "cs": {"error": 70.14, "ciLower": 68.85},
-        "cy": {"error": 98.19, "ciLower": 96.7},
-        "da": {"error": 63.85, "ciLower": 61.94},
-        "de": {"error": 19.69, "ciLower": 18.79},
-        "el": {"error": 59.14, "ciLower": 57.67},
-        "en": {"error": 9.88, "ciLower": 9.07},
-        "es": {"error": 11.15, "ciLower": 10.58},
-        "et": {"error": 81.71, "ciLower": 80.47},
-        "fa": {"error": 87.72, "ciLower": 86.66},
-        "fi": {"error": 49.46, "ciLower": 48.18},
-        "fil": {"error": 49.32, "ciLower": 48.08},
-        "fr": {"error": 27.91, "ciLower": 26.68},
-        "gl": {"error": 50.06, "ciLower": 49.09},
-        "gu": {"error": 100.4, "ciLower": 100.16},
-        "ha": {"error": 108.15, "ciLower": 105.69},
-        "he": {"error": 65.56, "ciLower": 63.95},
-        "hi": {"error": 100.01, "ciLower": 99.26},
-        "hr": {"error": 64.23, "ciLower": 62.91},
-        "hu": {"error": 72.26, "ciLower": 70.67},
-        "hy": {"error": 127.56, "ciLower": 124.05},
-        "id": {"error": 38.02, "ciLower": 36.34},
-        "is": {"error": 99.32, "ciLower": 93.94},
-        "it": {"error": 17.26, "ciLower": 16.46},
-        "ja": {"error": 25.28, "ciLower": 24.19},
-        "ka": {"error": 117.78, "ciLower": 114.84},
-        "kk": {"error": 99.79, "ciLower": 97.99},
-        "km": {"error": 134.48, "ciLower": 129.24},
-        "kn": {"error": 102.88, "ciLower": 101.85},
-        "ko": {"error": 12.98, "ciLower": 11.77},
-        "lb": {"error": 107.78, "ciLower": 104.95},
-        "ln": {"error": 102.73, "ciLower": 100.18},
-        "lo": {"error": 104.35, "ciLower": 102.73},
-        "lt": {"error": 91.78, "ciLower": 90.81},
-        "lv": {"error": 84.6, "ciLower": 83.48},
-        "mi": {"error": 81.65, "ciLower": 80.04},
-        "mk": {"error": 63.95, "ciLower": 62.78},
-        "ml": {"error": 102.84, "ciLower": 102.22},
-        "mn": {"error": 124.42, "ciLower": 120.42},
-        "mr": {"error": 100.42, "ciLower": 100.12},
-        "ms": {"error": 40.87, "ciLower": 39.31},
-        "mt": {"error": 103.46, "ciLower": 101.68},
-        "my": {"error": 130.63, "ciLower": 126.3},
-        "nb": {"error": 49.26, "ciLower": 47.5},
-        "ne": {"error": 101.15, "ciLower": 100.48},
-        "nl": {"error": 36.75, "ciLower": 35.31},
-        "oc": {"error": 88.62, "ciLower": 86.95},
-        "pa": {"error": 101.13, "ciLower": 100.15},
-        "pl": {"error": 35.68, "ciLower": 34.46},
-        "ps": {"error": 101.19, "ciLower": 100.22},
-        "pt": {"error": 13.91, "ciLower": 13.11},
-        "ro": {"error": 62.16, "ciLower": 60.92},
-        "ru": {"error": 22.92, "ciLower": 22},
-        "sd": {"error": 103.23, "ciLower": 101.54},
-        "sk": {"error": 65.77, "ciLower": 64.54},
-        "sl": {"error": 77.9, "ciLower": 76.78},
-        "sn": {"error": 134.76, "ciLower": 129.9},
-        "so": {"error": 107.06, "ciLower": 105.6},
-        "sr": {"error": 69.25, "ciLower": 67.61},
-        "sv": {"error": 42.4, "ciLower": 41},
-        "sw": {"error": 100.69, "ciLower": 98.1},
-        "ta": {"error": 58.84, "ciLower": 56.79},
-        "te": {"error": 101.77, "ciLower": 100.99},
-        "tg": {"error": 108.3, "ciLower": 106.47},
-        "th": {"error": 38.1, "ciLower": 36.81},
-        "tr": {"error": 31.09, "ciLower": 29.91},
-        "uk": {"error": 42.03, "ciLower": 40.78},
-        "ur": {"error": 55.42, "ciLower": 53.8},
-        "uz": {"error": 111.42, "ciLower": 108.74},
-        "vi": {"error": 42.6, "ciLower": 41.42},
-        "yo": {"error": 103.28, "ciLower": 101.84},
-        "zh": {"error": 36.21, "ciLower": 35.11}
-      },
-      "performance": {"accelerated": 34.8, "cpu": 11.9}
-    },
-    "whisper-base.en": {
-      "accuracy": {
-        "en": {"error": 7.6, "ciLower": 6.89}
-      },
-      "performance": {"accelerated": 36.25, "cpu": 12.75}
     },
     "whisper-small": {
       "accuracy": {
@@ -892,55 +616,6 @@
       "accuracy": {
         "en": {"error": 4.14, "ciLower": 3.7},
         "zh": {"error": 8.1, "ciLower": 7.28}
-      },
-      "performance": {"accelerated": 2.15, "cpu": 0.55}
-    },
-    "whisper-large-v2": {
-      "accuracy": {
-        "af": {"error": 38.45, "ciLower": 36.36},
-        "am": {"error": 140.81, "ciLower": 135.38},
-        "ar": {"error": 17.06, "ciLower": 15.68},
-        "as": {"error": 104.58, "ciLower": 104.19},
-        "az": {"error": 24.13, "ciLower": 23.27},
-        "be": {"error": 46.96, "ciLower": 46.01},
-        "bg": {"error": 15.81, "ciLower": 15},
-        "bn": {"error": 103.42, "ciLower": 102.99},
-        "bs": {"error": 17.02, "ciLower": 16.25},
-        "ca": {"error": 5.56, "ciLower": 5.03},
-        "cs": {"error": 14.42, "ciLower": 13.62},
-        "cy": {"error": 30.55, "ciLower": 29.6},
-        "da": {"error": 14.92, "ciLower": 14.19},
-        "de": {"error": 4.53, "ciLower": 4.13},
-        "el": {"error": 13.51, "ciLower": 12.53},
-        "en": {"error": 4.21, "ciLower": 3.73},
-        "es": {"error": 3.3, "ciLower": 2.93},
-        "et": {"error": 23.25, "ciLower": 22.23},
-        "fa": {"error": 34.25, "ciLower": 33.18},
-        "fi": {"error": 9.58, "ciLower": 8.93},
-        "fil": {"error": 13.17, "ciLower": 12.48},
-        "fr": {"error": 5.81, "ciLower": 5.29},
-        "gl": {"error": 16.57, "ciLower": 15.91},
-        "gu": {"error": 103.37, "ciLower": 103},
-        "ha": {"error": 92.22, "ciLower": 90.51},
-        "he": {"error": 27.78, "ciLower": 26.13},
-        "hi": {"error": 23.27, "ciLower": 21.44},
-        "hr": {"error": 14.18, "ciLower": 13.43},
-        "hu": {"error": 17.84, "ciLower": 17},
-        "hy": {"error": 46.93, "ciLower": 45.6},
-        "id": {"error": 7.43, "ciLower": 6.82},
-        "is": {"error": 39.59, "ciLower": 35.74},
-        "it": {"error": 3.59, "ciLower": 3.07},
-        "ja": {"error": 5.56, "ciLower": 5.09},
-        "ka": {"error": 115.24, "ciLower": 112.85},
-        "kk": {"error": 40.13, "ciLower": 39.15},
-        "km": {"error": 150.84, "ciLower": 146.99},
-        "kn": {"error": 47.64, "ciLower": 45.56},
-        "ko": {"error": 4.99, "ciLower": 3.99},
-        "lb": {"error": 92.83, "ciLower": 91.48},
-        "ln": {"error": 79.4, "ciLower": 77.2},
-        "lo": {"error": 101.65, "ciLower": 101.07},
-        "lt": {"error": 30.37, "ciLower": 29.39},
-        "lv": {"error": 24.49, "ciLower": 23.58}
       },
       "performance": {"accelerated": 2.15, "cpu": 0.55}
     },

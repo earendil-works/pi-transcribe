@@ -31,6 +31,27 @@ const REMOVED_MODELS = [
   // Lowercase output without punctuation: unusable for dictation.
   "parakeet-ctc-0.6b",
   "parakeet-rnnt-0.6b",
+  // Superseded by canary-1b-v2: same speed, worse in all four of its languages.
+  "canary-1b-flash",
+  // Lowercase Cyrillic only: no punctuation, digits, or Latin letters.
+  "gigaam-v3-ctc",
+  "gigaam-v3-rnnt",
+  // Superseded by parakeet-unified-en-0.6b at this app's chunk size.
+  "nemotron-speech-streaming-en-0.6b",
+  // Moonshine: never a pick, dominated by SenseVoice / Whisper Tiny / Parakeet 110M,
+  // and the language variants carry a non-MIT community license.
+  "moonshine-tiny",
+  "moonshine-streaming-tiny",
+  "moonshine-tiny-zh",
+  ...["ja", "ko", "uk", "vi"].flatMap((language) => [`moonshine-tiny-${language}`, `moonshine-base-${language}`]),
+  // Large v3 is better or equal in every measured language at the same speed.
+  "whisper-large-v2",
+  // Never a pick; only on the frontier as the fastest usable row by a sliver.
+  // Parakeet TDT-CTC 110M and Canary 180M Flash cover the same tier far better.
+  "whisper-tiny",
+  "whisper-tiny.en",
+  "whisper-base",
+  "whisper-base.en",
 ];
 
 test("generated catalog matches its source and benchmarks contain no stale model IDs", () => {
@@ -51,16 +72,14 @@ test("curation preserves the chosen Granite representative and requested special
   assert.deepEqual(CATALOG_MODELS.filter((model) => model.id.startsWith("granite-")).map((model) => model.id),
     ["granite-speech-4.1-2b"]);
   for (const id of [
-    "gigaam-v3-ctc", "gigaam-v3-e2e-ctc", "gigaam-v3-rnnt", "gigaam-v3-e2e-rnnt",
-    "nemotron-speech-streaming-en-0.6b", "nemotron-3.5-asr-streaming-0.6b",
+    "gigaam-v3-e2e-ctc", "gigaam-v3-e2e-rnnt",
+    "nemotron-3.5-asr-streaming-0.6b",
     "multitalker-parakeet-streaming-0.6b-v1", "Breeze-ASR-25", "medasr",
     "Voxtral-Mini-3B-2507", "Voxtral-Mini-4B-Realtime-2602",
-    "whisper-small", "whisper-medium", "whisper-large-v2", "whisper-large-v3", "whisper-large-v3-turbo",
-    "canary-180m-flash", "canary-1b-flash", "canary-1b-v2", "canary-qwen-2.5b",
+    "whisper-small", "whisper-medium", "whisper-large-v3", "whisper-large-v3-turbo",
+    "canary-180m-flash", "canary-1b-v2", "canary-qwen-2.5b",
     "parakeet-unified-en-0.6b",
     "parakeet-tdt-0.6b-v2", "parakeet-tdt-0.6b-v3", "parakeet-tdt_ctc-110m",
-    "moonshine-tiny", "moonshine-streaming-tiny", "moonshine-tiny-zh",
-    ...["ja", "ko", "uk", "vi"].flatMap((language) => [`moonshine-tiny-${language}`, `moonshine-base-${language}`]),
   ]) assert.ok(getCatalogModel(id), `Required retained model: ${id}`);
 });
 
