@@ -168,16 +168,6 @@ export class LanguagePicker extends Container implements Focusable {
         0,
       ),
     );
-    this.addChild(
-      new Text(
-        theme.fg(
-          "muted",
-          "Don't see yours? No available model benchmarks well enough to recommend yet.",
-        ),
-        TEXT_PADDING,
-        0,
-      ),
-    );
     this.addChild(new Spacer(1));
     // The search caret sits in the gutter, aligned with the list cursor; its
     // "> " prompt then puts the typed query on the content edge.
